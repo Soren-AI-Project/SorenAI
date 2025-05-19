@@ -151,7 +151,7 @@ export default function Dashboard() {
                     <h3 className="text-xl font-bold text-white">Parcelas</h3>
                   </div>
                   <Link 
-                    href="/dashboard/parcelas" 
+                    href="/parcelas" 
                     className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 cursor-pointer flex items-center"
                   >
                     Ver todas →

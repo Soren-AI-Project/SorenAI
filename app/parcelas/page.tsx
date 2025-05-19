@@ -10,11 +10,17 @@ interface Agricultor {
   nombre: string;
 }
 
+interface Tecnico {
+  id: string;
+  nombre: string;
+}
+
 interface Parcela {
   id: string;
   cultivo: string;
   ha: number;
   agricultor: Agricultor;
+  tecnico?: Tecnico;
 }
 
 interface ParcelaResponse {
@@ -120,7 +126,7 @@ export default function ParcelasPage() {
           // Es admin: buscar técnicos asociados
           const { data: tecnicos } = await supabase
             .from('tecnico')
-            .select('id')
+            .select('id, nombre')
             .eq('id_admin', admin.id);
 
           const tecnicoIds = tecnicos?.map(t => t.id) || [];
@@ -133,7 +139,7 @@ export default function ParcelasPage() {
           // Buscar agricultores de esos técnicos
           const { data: agricultores } = await supabase
             .from('agricultor')
-            .select('id')
+            .select('id, id_tecnico')
             .in('id_tecnico', tecnicoIds);
 
           const agricultorIds = agricultores?.map(a => a.id) || [];
@@ -158,12 +164,20 @@ export default function ParcelasPage() {
             .in('id_agricultor', agricultorIds);
 
           // Transformar los datos para que coincidan con la interfaz Parcela
-          const parcelasFormateadas = parcelasData?.map(p => ({
-            id: p.id,
-            cultivo: p.cultivo,
-            ha: p.ha,
-            agricultor: Array.isArray(p.agricultor) ? p.agricultor[0] : p.agricultor
-          })) || [];
+          const parcelasFormateadas = parcelasData?.map(p => {
+            // Encontrar el agricultor correspondiente
+            const agricultor = agricultores?.find(a => a.id === p.agricultor[0]?.id);
+            // Encontrar el técnico correspondiente
+            const tecnico = tecnicos?.find(t => t.id === agricultor?.id_tecnico);
+            
+            return {
+              id: p.id,
+              cultivo: p.cultivo,
+              ha: p.ha,
+              agricultor: Array.isArray(p.agricultor) ? p.agricultor[0] : p.agricultor,
+              tecnico: tecnico ? { id: tecnico.id, nombre: tecnico.nombre } : undefined
+            };
+          }) || [];
 
           setParcelas(parcelasFormateadas);
           setLoading(false);
@@ -282,11 +296,18 @@ export default function ParcelasPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {parcelas.map((parcela) => (
-                  <div key={parcela.id} className="bg-gray-800 rounded-lg shadow p-6">
+                  <Link 
+                    href={`/parcelas/${parcela.id}`} 
+                    className="bg-gray-800 rounded-lg shadow p-6 hover:bg-gray-700 transition-colors duration-200 cursor-pointer"
+                    key={parcela.id}
+                  >
                     <h2 className="text-xl font-bold text-white mb-2">{parcela.cultivo}</h2>
                     <div className="text-gray-400 mb-1">Hectáreas: {parcela.ha}</div>
                     <div className="text-gray-400">Agricultor: {parcela.agricultor?.nombre || "-"}</div>
-                  </div>
+                    {userProfile === "admin" && parcela.tecnico && (
+                      <div className="text-gray-400 mt-2">Técnico: {parcela.tecnico.nombre}</div>
+                    )}
+                  </Link>
                 ))}
               </div>
             )}
