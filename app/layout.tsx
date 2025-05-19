@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Suspense, useEffect, useState } from "react";
 import Loading from "./loading";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,18 +18,11 @@ const geistMono = Geist_Mono({
 
 // Metadata ahora debe estar en un archivo metadata.ts separado
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+// Wrapper para el contenido del layout que usa Suspense para useSearchParams
+function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  // Crear una cadena de búsqueda para detectar cambios
-  const searchParamsString = searchParams?.toString();
-
+  
   useEffect(() => {
     const handleStart = () => {
       setIsLoading(true);
@@ -49,8 +42,21 @@ export default function RootLayout({
     const timer = setTimeout(handleComplete, 800);
 
     return () => clearTimeout(timer);
-  }, [pathname, searchParamsString]); // Dependencias para detectar cambios de ruta
+  }, [pathname]); // Solo dependemos del pathname
 
+  return (
+    <>
+      {isLoading && <Loading />}
+      {children}
+    </>
+  );
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="es">
       <head>
@@ -61,9 +67,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {isLoading && <Loading />}
         <Suspense fallback={<Loading />}>
-          {children}
+          <LayoutContent>
+            {children}
+          </LayoutContent>
         </Suspense>
       </body>
     </html>
