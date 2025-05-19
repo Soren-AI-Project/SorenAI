@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { Dialog, Transition } from "@headlessui/react";
 import { supabase } from "../../../utils/supabaseClient";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
@@ -24,7 +25,6 @@ interface Parcela {
   // Datos adicionales para la vista detallada
   fechaPlantacion?: string;
   estado?: string;
-  ubicacion?: string;
   ultimoAnalisis?: string;
 }
 
@@ -33,6 +33,14 @@ export default function DetalleParcelaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [userProfile, setUserProfile] = useState<"admin" | "tecnico" | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editData, setEditData] = useState({
+    cultivo: "",
+    ha: 0,
+    estado: true,
+  });
+  const [isSaving, setIsSaving] = useState(false);
   const router = useRouter();
   const params = useParams();
   const parcelaId = params.id as string;
@@ -129,6 +137,11 @@ export default function DetalleParcelaPage() {
           };
 
           setParcela(parcelaDetallada);
+          setEditData({
+            cultivo: parcelaDetallada.cultivo,
+            ha: parcelaDetallada.ha,
+            estado: parcelaDetallada.estado === "Activo",
+          });
           setLoading(false);
           return;
         }
@@ -163,7 +176,8 @@ export default function DetalleParcelaPage() {
             .select(`
               id, 
               cultivo, 
-              ha, 
+              ha,
+              estado, 
               agricultor:id_agricultor (
                 id, 
                 nombre
@@ -185,7 +199,6 @@ export default function DetalleParcelaPage() {
           
           const agricultorCompleto = agricultores?.find(a => a.id === agricultor.id);
           const tecnicoRelacionado = tecnicos?.find(t => t.id === agricultorCompleto?.id_tecnico);
-
           // Datos simulados adicionales para la vista detallada
           const parcelaDetallada = {
             id: parcelaData.id,
@@ -196,12 +209,16 @@ export default function DetalleParcelaPage() {
               ? { id: tecnicoRelacionado.id, nombre: tecnicoRelacionado.nombre }
               : undefined,
             fechaPlantacion: "15/03/2023",
-            estado: "Activo",
-            ubicacion: "40.4168° N, 3.7038° W",
+            estado: parcelaData.estado === true ? "Activo" : "Inactivo",
             ultimoAnalisis: "27/05/2023"
           };
 
           setParcela(parcelaDetallada);
+          setEditData({
+            cultivo: parcelaDetallada.cultivo,
+            ha: parcelaDetallada.ha,
+            estado: parcelaDetallada.estado === "Activo",
+          });
           setLoading(false);
           return;
         }
@@ -223,8 +240,249 @@ export default function DetalleParcelaPage() {
     router.push('/login');
   };
 
+  const handleDelete = async () => {
+    if (!parcelaId) return;
+
+    try {
+      const { error } = await supabase
+        .from('parcela')
+        .delete()
+        .eq('id', parcelaId);
+
+      if (error) {
+        console.error("Error al eliminar la parcela:", error);
+        setIsModalOpen(false);
+        return;
+      }
+
+      setIsModalOpen(false);
+      router.push('/parcelas');
+    } catch (err) {
+      console.error("Error al eliminar la parcela:", err);
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!parcelaId) return;
+
+    setIsSaving(true);
+    try {
+      const { data: updatedParcela, error } = await supabase
+        .from('parcela')
+        .update({
+          cultivo: editData.cultivo,
+          ha: editData.ha,
+          estado: editData.estado,
+        })
+        .eq('id', parcelaId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error al editar la parcela:", error);
+        setIsSaving(false);
+        return;
+      }
+
+      // Actualizar el estado de la parcela manualmente
+      if (updatedParcela) {
+        setParcela((prevParcela) => prevParcela ? ({
+                  ...prevParcela,
+                  cultivo: updatedParcela.cultivo,
+                  ha: updatedParcela.ha,
+                  estado: updatedParcela.estado ? "Activo" : "Inactivo",
+                }) : null);
+      }
+
+      setIsEditModalOpen(false);
+    } catch (err) {
+      console.error("Error al editar la parcela:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Modal de confirmación */}
+      <Transition appear show={isModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-10" onClose={() => setIsModalOpen(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
+                  <Dialog.Title
+                    as="h3"
+                    className="text-lg font-medium leading-6 text-white"
+                  >
+                    Confirmar eliminación
+                  </Dialog.Title>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-400">
+                      ¿Estás seguro de que deseas eliminar esta parcela? Esta acción no se puede deshacer.
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                      onClick={() => setIsModalOpen(false)}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      onClick={handleDelete}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {/* Modal de edición */}
+      <Transition appear show={isEditModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-10" onClose={() => setIsEditModalOpen(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
+                  <Dialog.Title
+                    as="h3"
+                    className="text-lg font-medium leading-6 text-white"
+                  >
+                    Editar Parcela
+                  </Dialog.Title>
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300">Cultivo</label>
+                      <input
+                        type="text"
+                        value={editData.cultivo}
+                        onChange={(e) => setEditData({ ...editData, cultivo: e.target.value })}
+                        className="appearance-none relative block w-full px-3 py-3 border border-gray-600 placeholder-gray-500 text-white rounded-md bg-gray-700 focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm autofill:bg-gray-700 autofill:text-white"
+                        placeholder="Cultivo"
+                        style={{ WebkitTextFillColor: 'white', WebkitBoxShadow: '0 0 0px 1000px #374151 inset' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300">Hectáreas</label>
+                      <input
+                        type="number"
+                        value={editData.ha}
+                        onChange={(e) => setEditData({ ...editData, ha: parseFloat(e.target.value) })}
+                        className="appearance-none relative block w-full px-3 py-3 border border-gray-600 placeholder-gray-500 text-white rounded-md bg-gray-700 focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm autofill:bg-gray-700 autofill:text-white"
+                        placeholder="Hectáreas"
+                        style={{ WebkitTextFillColor: 'white', WebkitBoxShadow: '0 0 0px 1000px #374151 inset' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300">Estado</label>
+                      <select
+                        value={editData.estado ? "Activo" : "Inactivo"}
+                        onChange={(e) => setEditData({ ...editData, estado: e.target.value === "Activo" })}
+                        className="appearance-none relative block w-full px-3 py-3 border border-gray-600 placeholder-gray-500 text-white rounded-md bg-gray-700 focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
+                      >
+                        <option value="Activo">Activo</option>
+                        <option value="Inactivo">Inactivo</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                      onClick={() => setIsEditModalOpen(false)}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 flex items-center justify-center"
+                      onClick={handleEdit}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <svg
+                          className="animate-spin h-5 w-5 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                          ></path>
+                        </svg>
+                      ) : (
+                        "Guardar"
+                      )}
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
       {/* Header */}
       <header className="bg-gray-800 shadow-md z-10">
         <div className="w-full px-4 py-4 flex justify-between items-center">
@@ -314,9 +572,14 @@ export default function DetalleParcelaPage() {
                     <div className="flex justify-between items-start">
                       <div>
                         <h2 className="text-2xl font-bold text-white mb-2">{parcela.cultivo}</h2>
-                        <div className="text-gray-400">ID: {parcela.id}</div>
                       </div>
-                      <div className="px-4 py-2 bg-green-800/30 rounded-md text-green-400 border border-green-800/50">
+                      <div
+                        className={`px-4 py-2 rounded-md border ${
+                          parcela.estado === "Activo"
+                            ? "bg-green-800/30 text-green-400 border-green-800/50"
+                            : "bg-red-800/30 text-red-400 border-red-800/50"
+                        }`}
+                      >
                         {parcela.estado || "Activo"}
                       </div>
                     </div>
@@ -337,10 +600,6 @@ export default function DetalleParcelaPage() {
                         <span className="text-gray-400">Último análisis:</span>
                         <span className="text-white font-medium">{parcela.ultimoAnalisis}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Ubicación:</span>
-                        <span className="text-white font-medium">{parcela.ubicacion}</span>
-                      </div>
                     </div>
                   </div>
                   
@@ -353,13 +612,19 @@ export default function DetalleParcelaPage() {
                         </svg>
                         Realizar análisis
                       </button>
-                      <button className="px-4 py-2 border border-gray-600 text-sm font-medium rounded-md text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 cursor-pointer flex items-center">
+                      <button 
+                        onClick={() => setIsEditModalOpen(true)}
+                        className="px-4 py-2 border border-gray-600 text-sm font-medium rounded-md text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 cursor-pointer flex items-center"
+                      >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                         </svg>
                         Editar parcela
                       </button>
-                      <button className="px-4 py-2 border border-red-900 text-sm font-medium rounded-md text-red-400 hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-200 cursor-pointer flex items-center">
+                      <button 
+                        onClick={() => setIsModalOpen(true)}
+                        className="px-4 py-2 border border-red-900 text-sm font-medium rounded-md text-red-400 hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-200 cursor-pointer flex items-center"
+                      >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
@@ -394,7 +659,7 @@ export default function DetalleParcelaPage() {
                           <div className="flex items-center">
                             <div className="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center mr-2">
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-400">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877a2.25 2.25 0 00-3.182 0L11.42 15.17zM6 9l4.5 4.5L21 6" />
                               </svg>
                             </div>
                             <span className="text-white font-medium">{parcela.tecnico.nombre}</span>
@@ -444,4 +709,4 @@ export default function DetalleParcelaPage() {
       </div>
     </div>
   );
-} 
+}
