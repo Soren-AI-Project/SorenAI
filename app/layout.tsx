@@ -5,6 +5,7 @@ import "./globals.css";
 import { Suspense, useEffect, useState } from "react";
 import Loading from "./loading";
 import { usePathname } from "next/navigation";
+import { MensajesProvider } from "../utils/MensajesContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,11 +68,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Suspense fallback={<Loading />}>
-          <LayoutContent>
-            {children}
-          </LayoutContent>
-        </Suspense>
+        <MensajesProvider>
+          <Suspense fallback={<Loading />}>
+            <LayoutContent>
+              {children}
+            </LayoutContent>
+          </Suspense>
+        </MensajesProvider>
       </body>
     </html>
   );

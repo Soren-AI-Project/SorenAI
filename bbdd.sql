@@ -71,3 +71,47 @@ create table public.analitica (
   resultado text,
   fecha timestamp with time zone default now()
 );
+
+-- Tabla Mensajes
+create table public.mensaje (
+  id uuid primary key default gen_random_uuid(),
+  remitente_tipo text not null, -- 'admin', 'tecnico', 'agricultor'
+  remitente_admin_id uuid references public.admin(id) on delete set null,
+  remitente_tecnico_id uuid references public.tecnico(id) on delete set null,
+  remitente_agricultor_id uuid references public.agricultor(id) on delete set null,
+  destinatario_tipo text not null, -- 'admin', 'tecnico', 'agricultor'
+  destinatario_admin_id uuid references public.admin(id) on delete set null,
+  destinatario_tecnico_id uuid references public.tecnico(id) on delete set null,
+  destinatario_agricultor_id uuid references public.agricultor(id) on delete set null,
+  asunto text not null,
+  contenido text not null,
+  leido boolean not null default false,
+  fecha_envio timestamp with time zone default now(),
+  
+  -- Restricciones para validar que solo un tipo de remitente y destinatario esté presente
+  constraint check_un_remitente check (
+    (remitente_tipo = 'admin' AND remitente_admin_id IS NOT NULL AND remitente_tecnico_id IS NULL AND remitente_agricultor_id IS NULL) OR
+    (remitente_tipo = 'tecnico' AND remitente_tecnico_id IS NOT NULL AND remitente_admin_id IS NULL AND remitente_agricultor_id IS NULL) OR
+    (remitente_tipo = 'agricultor' AND remitente_agricultor_id IS NOT NULL AND remitente_admin_id IS NULL AND remitente_tecnico_id IS NULL)
+  ),
+  
+  constraint check_un_destinatario check (
+    (destinatario_tipo = 'admin' AND destinatario_admin_id IS NOT NULL AND destinatario_tecnico_id IS NULL AND destinatario_agricultor_id IS NULL) OR
+    (destinatario_tipo = 'tecnico' AND destinatario_tecnico_id IS NOT NULL AND destinatario_admin_id IS NULL AND destinatario_agricultor_id IS NULL) OR
+    (destinatario_tipo = 'agricultor' AND destinatario_agricultor_id IS NOT NULL AND destinatario_admin_id IS NULL AND destinatario_tecnico_id IS NULL)
+  )
+);
+
+-- Crear índices para búsquedas eficientes
+create index idx_mensaje_remitente_tipo on public.mensaje(remitente_tipo);
+create index idx_mensaje_remitente_admin on public.mensaje(remitente_admin_id) where remitente_admin_id is not null;
+create index idx_mensaje_remitente_tecnico on public.mensaje(remitente_tecnico_id) where remitente_tecnico_id is not null;
+create index idx_mensaje_remitente_agricultor on public.mensaje(remitente_agricultor_id) where remitente_agricultor_id is not null;
+
+create index idx_mensaje_destinatario_tipo on public.mensaje(destinatario_tipo);
+create index idx_mensaje_destinatario_admin on public.mensaje(destinatario_admin_id) where destinatario_admin_id is not null;
+create index idx_mensaje_destinatario_tecnico on public.mensaje(destinatario_tecnico_id) where destinatario_tecnico_id is not null;
+create index idx_mensaje_destinatario_agricultor on public.mensaje(destinatario_agricultor_id) where destinatario_agricultor_id is not null;
+
+create index idx_mensaje_fecha on public.mensaje(fecha_envio);
+create index idx_mensaje_leido on public.mensaje(leido);

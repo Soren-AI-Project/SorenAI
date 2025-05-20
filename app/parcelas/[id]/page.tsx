@@ -5,6 +5,7 @@ import { Dialog, Transition } from "@headlessui/react";
 import { supabase } from "../../../utils/supabaseClient";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { useMensajes } from "../../../utils/MensajesContext";
 
 interface Agricultor {
   id: string;
@@ -16,23 +17,35 @@ interface Tecnico {
   nombre: string;
 }
 
+interface Analitica {
+  id: string;
+  id_parcela: string;
+  path_foto?: string;  // Ruta a la foto del análisis
+  resultado?: string;  // Resultado textual del análisis
+  fecha: string;       // Timestamp de la fecha del análisis
+}
+
 interface Parcela {
   id: string;
   cultivo: string;
   ha: number;
-  agricultor: Agricultor;
+  agricultor: Agricultor | null;
   tecnico?: Tecnico;
   // Datos adicionales para la vista detallada
   fechaPlantacion?: string;
   estado?: string;
   ultimoAnalisis?: string;
+  analiticas?: Analitica[]; // Lista de analíticas relacionadas
 }
 
 export default function DetalleParcelaPage() {
+  const { mensajesNoLeidos, cargarMensajesNoLeidos, userProfile: perfilUsuario } = useMensajes();
   const [parcela, setParcela] = useState<Parcela | null>(null);
+  const [analiticas, setAnaliticas] = useState<Analitica[]>([]);
+  const [loadingAnaliticas, setLoadingAnaliticas] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [userProfile, setUserProfile] = useState<"admin" | "tecnico" | null>(null);
+  const [userProfile, setUserProfile] = useState<"admin" | "tecnico" | "agricultor" | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editData, setEditData] = useState({
@@ -45,6 +58,57 @@ export default function DetalleParcelaPage() {
   const params = useParams();
   const parcelaId = params.id as string;
 
+  // Cargar las analíticas de la parcela
+  const cargarAnaliticas = async (parcelaId: string) => {
+    console.log("Cargando analíticas para parcela:", parcelaId);
+    setLoadingAnaliticas(true);
+    try {
+      // Consultar la tabla 'analitica' con los campos correctos
+      const resultado = await supabase
+        .from('analitica')
+        .select('id, id_parcela, path_foto, resultado, fecha')
+        .eq('id_parcela', parcelaId)
+        .order('fecha', { ascending: false });
+        
+      console.log("Resultado consulta analitica:", resultado);
+      
+      if (resultado?.error) {
+        console.error("Error detallado al cargar analíticas:", resultado.error);
+        setLoadingAnaliticas(false);
+        return;
+      }
+
+      // Comprobar estructura de datos
+      console.log("Estructura de datos recibida:", JSON.stringify(resultado?.data, null, 2));
+      console.log("Cantidad de analíticas encontradas:", resultado?.data?.length || 0);
+      
+      // Transformar datos de analíticas para mostrar
+      const analiticasFormateadas = resultado?.data?.map((analitica: any) => {
+        console.log("Procesando analítica:", analitica);
+        return {
+          id: analitica.id,
+          id_parcela: analitica.id_parcela,
+          path_foto: analitica.path_foto,
+          resultado: analitica.resultado,
+          fecha: analitica.fecha ? new Date(analitica.fecha).toLocaleDateString('es-ES', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric' 
+          }) : 'Fecha no disponible'
+        };
+      }) || [];
+
+      console.log("Analíticas formateadas:", analiticasFormateadas);
+      console.log("¿Hay analíticas para mostrar?", analiticasFormateadas.length > 0);
+      setAnaliticas(analiticasFormateadas);
+    } catch (err) {
+      console.error("Error detallado al cargar analíticas:", err);
+    } finally {
+      setLoadingAnaliticas(false);
+    }
+  };
+
+  // Verificar sesión del usuario
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getSession();
@@ -58,36 +122,31 @@ export default function DetalleParcelaPage() {
     checkUser();
   }, [router]);
 
+  // Actualizar información del perfil de usuario y mensajes
+  useEffect(() => {
+    if (perfilUsuario) {
+      setUserProfile(perfilUsuario.tipo as any);
+      // Actualizar mensajes no leídos
+      cargarMensajesNoLeidos(perfilUsuario.tipo, perfilUsuario.id);
+    }
+  }, [perfilUsuario, cargarMensajesNoLeidos]);
+
+  // Cargar detalles de la parcela y las analíticas
   useEffect(() => {
     const fetchParcelaDetail = async () => {
-      if (!parcelaId) return;
+      if (!parcelaId || !perfilUsuario) return;
       
       setLoading(true);
       setError("");
+      
       try {
-        // 1. Obtener usuario autenticado
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setError("No autenticado");
-          setLoading(false);
-          return;
-        }
-
-        // 2. Verificar si es técnico
-        const { data: tecnico } = await supabase
-          .from('tecnico')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (tecnico) {
-          setUserProfile("tecnico");
-          
+        // Verificar acceso según tipo de usuario
+        if (perfilUsuario.tipo === 'tecnico') {
           // Obtener los agricultores asignados al técnico
           const { data: agricultores } = await supabase
             .from('agricultor')
             .select('id')
-            .eq('id_tecnico', tecnico.id);
+            .eq('id_tecnico', perfilUsuario.id);
 
           const agricultorIds = agricultores?.map(a => a.id) || [];
           
@@ -98,6 +157,8 @@ export default function DetalleParcelaPage() {
               id, 
               cultivo, 
               ha, 
+              estado,
+              id_agricultor,
               agricultor:id_agricultor (
                 id, 
                 nombre
@@ -124,16 +185,30 @@ export default function DetalleParcelaPage() {
             return;
           }
           
-          // Datos simulados adicionales para la vista detallada
+          // Buscar el último análisis de esta parcela
+          const { data: ultimoAnalisisData } = await supabase
+            .from('analitica')
+            .select('fecha')
+            .eq('id_parcela', parcelaId)
+            .order('fecha', { ascending: false })
+            .limit(1);
+          
+          const fechaUltimoAnalisis = ultimoAnalisisData && ultimoAnalisisData.length > 0
+            ? new Date(ultimoAnalisisData[0].fecha).toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+              })
+            : "No hay análisis";
+
+          // Construir la parcela con datos reales
           const parcelaDetallada = {
             id: parcelaData.id,
             cultivo: parcelaData.cultivo,
             ha: parcelaData.ha,
             agricultor: agricultor,
-            fechaPlantacion: "15/03/2023",
-            estado: "Activo",
-            ubicacion: "40.4168° N, 3.7038° W",
-            ultimoAnalisis: "27/05/2023"
+            estado: parcelaData.estado ? "Activo" : "Inactivo",
+            ultimoAnalisis: fechaUltimoAnalisis
           };
 
           setParcela(parcelaDetallada);
@@ -142,25 +217,49 @@ export default function DetalleParcelaPage() {
             ha: parcelaDetallada.ha,
             estado: parcelaDetallada.estado === "Activo",
           });
+          
+          // Cargar analíticas manualmente aquí
+          try {
+            console.log("Cargando analíticas para parcela:", parcelaId);
+            const { data: listaAnaliticas, error: errorAnaliticas } = await supabase
+              .from('analitica')
+              .select('id, id_parcela, path_foto, resultado, fecha')
+              .eq('id_parcela', parcelaId)
+              .order('fecha', { ascending: false });
+              
+            if (errorAnaliticas) {
+              console.error("Error al cargar analíticas:", errorAnaliticas);
+            } else {
+              console.log("Analíticas encontradas:", listaAnaliticas?.length || 0);
+              
+              // Transformar datos
+              const analiticasFormateadas = listaAnaliticas?.map((analitica: any) => ({
+                id: analitica.id,
+                id_parcela: analitica.id_parcela,
+                path_foto: analitica.path_foto,
+                resultado: analitica.resultado,
+                fecha: analitica.fecha ? new Date(analitica.fecha).toLocaleDateString('es-ES', { 
+                  day: '2-digit', 
+                  month: '2-digit', 
+                  year: 'numeric' 
+                }) : 'Fecha no disponible'
+              })) || [];
+              
+              setAnaliticas(analiticasFormateadas);
+            }
+          } catch (errorAnalisis) {
+            console.error("Error al procesar analíticas:", errorAnalisis);
+          }
+          
           setLoading(false);
           return;
         }
-
-        // 3. Verificar si es admin
-        const { data: admin } = await supabase
-          .from('admin')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (admin) {
-          setUserProfile("admin");
-          
+        else if (perfilUsuario.tipo === 'admin') {
           // Obtener los técnicos asociados a este admin
           const { data: tecnicos } = await supabase
             .from('tecnico')
             .select('id, nombre')
-            .eq('id_admin', admin.id);
+            .eq('id_admin', perfilUsuario.id);
 
           const tecnicoIds = tecnicos?.map(t => t.id) || [];
           
@@ -170,14 +269,15 @@ export default function DetalleParcelaPage() {
             .select('id, id_tecnico, nombre')
             .in('id_tecnico', tecnicoIds);
 
-          // Obtener la parcela
+          // Obtener la parcela con datos completos
           const { data: parcelaData, error: parcelaError } = await supabase
             .from('parcela')
             .select(`
               id, 
               cultivo, 
               ha,
-              estado, 
+              estado,
+              id_agricultor, 
               agricultor:id_agricultor (
                 id, 
                 nombre
@@ -199,7 +299,24 @@ export default function DetalleParcelaPage() {
           
           const agricultorCompleto = agricultores?.find(a => a.id === agricultor.id);
           const tecnicoRelacionado = tecnicos?.find(t => t.id === agricultorCompleto?.id_tecnico);
-          // Datos simulados adicionales para la vista detallada
+          
+          // Buscar el último análisis de esta parcela
+          const { data: ultimoAnalisisData } = await supabase
+            .from('analitica')
+            .select('fecha')
+            .eq('id_parcela', parcelaId)
+            .order('fecha', { ascending: false })
+            .limit(1);
+          
+          const fechaUltimoAnalisis = ultimoAnalisisData && ultimoAnalisisData.length > 0
+            ? new Date(ultimoAnalisisData[0].fecha).toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+              })
+            : "No hay análisis";
+
+          // Datos reales para la vista detallada
           const parcelaDetallada = {
             id: parcelaData.id,
             cultivo: parcelaData.cultivo,
@@ -208,9 +325,8 @@ export default function DetalleParcelaPage() {
             tecnico: tecnicoRelacionado 
               ? { id: tecnicoRelacionado.id, nombre: tecnicoRelacionado.nombre }
               : undefined,
-            fechaPlantacion: "15/03/2023",
-            estado: parcelaData.estado === true ? "Activo" : "Inactivo",
-            ultimoAnalisis: "27/05/2023"
+            estado: parcelaData.estado ? "Activo" : "Inactivo",
+            ultimoAnalisis: fechaUltimoAnalisis
           };
 
           setParcela(parcelaDetallada);
@@ -219,21 +335,152 @@ export default function DetalleParcelaPage() {
             ha: parcelaDetallada.ha,
             estado: parcelaDetallada.estado === "Activo",
           });
+          
+          // Cargar analíticas manualmente aquí
+          try {
+            console.log("Cargando analíticas para parcela:", parcelaId);
+            const { data: listaAnaliticas, error: errorAnaliticas } = await supabase
+              .from('analitica')
+              .select('id, id_parcela, path_foto, resultado, fecha')
+              .eq('id_parcela', parcelaId)
+              .order('fecha', { ascending: false });
+              
+            if (errorAnaliticas) {
+              console.error("Error al cargar analíticas:", errorAnaliticas);
+            } else {
+              console.log("Analíticas encontradas:", listaAnaliticas?.length || 0);
+              
+              // Transformar datos
+              const analiticasFormateadas = listaAnaliticas?.map((analitica: any) => ({
+                id: analitica.id,
+                id_parcela: analitica.id_parcela,
+                path_foto: analitica.path_foto,
+                resultado: analitica.resultado,
+                fecha: analitica.fecha ? new Date(analitica.fecha).toLocaleDateString('es-ES', { 
+                  day: '2-digit', 
+                  month: '2-digit', 
+                  year: 'numeric' 
+                }) : 'Fecha no disponible'
+              })) || [];
+              
+              setAnaliticas(analiticasFormateadas);
+            }
+          } catch (errorAnalisis) {
+            console.error("Error al procesar analíticas:", errorAnalisis);
+          }
+          
+          setLoading(false);
+          return;
+        }
+        else if (perfilUsuario.tipo === 'agricultor') {
+          // Verificar que la parcela pertenece al agricultor
+          const { data: parcelaData, error: parcelaError } = await supabase
+            .from('parcela')
+            .select(`
+              id, 
+              cultivo, 
+              ha,
+              estado,
+              id_agricultor
+            `)
+            .eq('id', parcelaId)
+            .eq('id_agricultor', perfilUsuario.id)
+            .single();
+
+          if (parcelaError) {
+            setError("No tienes acceso a esta parcela");
+            setLoading(false);
+            return;
+          }
+          
+          // Buscar el último análisis de esta parcela
+          const { data: ultimoAnalisisData } = await supabase
+            .from('analitica')
+            .select('fecha')
+            .eq('id_parcela', parcelaId)
+            .order('fecha', { ascending: false })
+            .limit(1);
+          
+          const fechaUltimoAnalisis = ultimoAnalisisData && ultimoAnalisisData.length > 0
+            ? new Date(ultimoAnalisisData[0].fecha).toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+              })
+            : "No hay análisis";
+
+          // Obtener datos del agricultor (propietario) para mostrar
+          const { data: agricultorData } = await supabase
+            .from('agricultor')
+            .select('id, nombre')
+            .eq('id', perfilUsuario.id)
+            .single();
+
+          // Construir la parcela con datos reales
+          const parcelaDetallada = {
+            id: parcelaData.id,
+            cultivo: parcelaData.cultivo,
+            ha: parcelaData.ha,
+            agricultor: agricultorData,
+            estado: parcelaData.estado ? "Activo" : "Inactivo",
+            ultimoAnalisis: fechaUltimoAnalisis
+          };
+
+          setParcela(parcelaDetallada);
+          setEditData({
+            cultivo: parcelaDetallada.cultivo,
+            ha: parcelaDetallada.ha,
+            estado: parcelaDetallada.estado === "Activo",
+          });
+          
+          // Cargar analíticas manualmente aquí
+          try {
+            console.log("Cargando analíticas para parcela:", parcelaId);
+            const { data: listaAnaliticas, error: errorAnaliticas } = await supabase
+              .from('analitica')
+              .select('id, id_parcela, path_foto, resultado, fecha')
+              .eq('id_parcela', parcelaId)
+              .order('fecha', { ascending: false });
+              
+            if (errorAnaliticas) {
+              console.error("Error al cargar analíticas:", errorAnaliticas);
+            } else {
+              console.log("Analíticas encontradas:", listaAnaliticas?.length || 0);
+              
+              // Transformar datos
+              const analiticasFormateadas = listaAnaliticas?.map((analitica: any) => ({
+                id: analitica.id,
+                id_parcela: analitica.id_parcela,
+                path_foto: analitica.path_foto,
+                resultado: analitica.resultado,
+                fecha: analitica.fecha ? new Date(analitica.fecha).toLocaleDateString('es-ES', { 
+                  day: '2-digit', 
+                  month: '2-digit', 
+                  year: 'numeric' 
+                }) : 'Fecha no disponible'
+              })) || [];
+              
+              setAnaliticas(analiticasFormateadas);
+            }
+          } catch (errorAnalisis) {
+            console.error("Error al procesar analíticas:", errorAnalisis);
+          }
+          
           setLoading(false);
           return;
         }
 
         setError("No tienes perfil asignado");
+        setLoading(false);
       } catch (err) {
         console.error("Error al cargar la parcela:", err);
         setError("Error al cargar los datos de la parcela");
-      } finally {
         setLoading(false);
       }
     };
     
     fetchParcelaDetail();
-  }, [parcelaId, router]);
+  }, [parcelaId, perfilUsuario]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -303,8 +550,74 @@ export default function DetalleParcelaPage() {
     }
   };
 
+  // Función para renderizar las analíticas
+  const renderAnaliticas = () => {
+    if (loadingAnaliticas) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-white">Cargando analíticas...</div>
+        </div>
+      );
+    }
+
+    if (analiticas.length === 0) {
+      return (
+        <div className="bg-gray-700 rounded-lg p-6 text-center">
+          <p className="text-gray-400 mb-4">No hay analíticas registradas para esta parcela.</p>
+          <button className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 cursor-pointer">
+            Realizar primer análisis
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {analiticas.map((analitica) => (
+          <div key={analitica.id} className="bg-gray-700 rounded-lg overflow-hidden">
+            <div className="p-4 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
+              <div className="font-medium text-white">Análisis del {analitica.fecha}</div>
+              <button className="text-green-400 hover:text-green-300 text-sm">
+                Ver detalle
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 gap-4">
+                {analitica.path_foto && (
+                  <div className="bg-gray-800 p-3 rounded-lg flex justify-center">
+                    <img 
+                      src={analitica.path_foto} 
+                      alt="Análisis" 
+                      className="max-h-60 object-contain rounded-lg" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Error+de+carga';
+                      }}
+                    />
+                  </div>
+                )}
+                {analitica.resultado && (
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <div className="text-xs text-gray-400 mb-1">Resultado:</div>
+                    <div className="text-white">{analitica.resultado}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
+      {/* Solo visible en desarrollo para depuración */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="fixed bottom-2 right-2 bg-gray-800 p-2 rounded shadow-lg text-xs text-white z-50">
+          Analíticas cargadas: {analiticas?.length || 0}
+        </div>
+      )}
+
       {/* Modal de confirmación */}
       <Transition appear show={isModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-10" onClose={() => setIsModalOpen(false)}>
@@ -533,12 +846,16 @@ export default function DetalleParcelaPage() {
                 </svg>
                 Parcelas
               </Link>
-              <Link href="/dashboard/mensajes" className="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors group relative">
+              <Link href="/mensajes" className="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors group relative">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-3 text-gray-400 group-hover:text-white">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                 </svg>
                 Mensajes
-                <span className="absolute right-4 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded-full">2</span>
+                {mensajesNoLeidos > 0 && (
+                  <span className="absolute right-4 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {mensajesNoLeidos}
+                  </span>
+                )}
               </Link>
             </div>
           </nav>
@@ -593,8 +910,8 @@ export default function DetalleParcelaPage() {
                         <span className="text-white font-medium">{parcela.ha} ha</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Fecha de plantación:</span>
-                        <span className="text-white font-medium">{parcela.fechaPlantacion}</span>
+                        <span className="text-gray-400">Estado:</span>
+                        <span className="text-white font-medium">{parcela.estado}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Último análisis:</span>
@@ -634,74 +951,117 @@ export default function DetalleParcelaPage() {
                   </div>
                 </div>
                 
-                {/* Tarjeta de personas asociadas */}
-                <div className="bg-gray-800 rounded-lg shadow">
-                  <div className="p-6 border-b border-gray-700">
-                    <h3 className="text-lg font-medium text-gray-300">Personas Asociadas</h3>
-                  </div>
-                  <div className="p-6">
-                    <div className="space-y-4">
-                      <div>
-                        <span className="text-gray-400 block mb-1">Agricultor:</span>
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-full bg-green-900/30 flex items-center justify-center mr-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-green-400">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                            </svg>
-                          </div>
-                          <span className="text-white font-medium">{parcela.agricultor?.nombre || "-"}</span>
-                        </div>
-                      </div>
-                      
-                      {userProfile === "admin" && parcela.tecnico && (
+                <div className="md:col-span-1 space-y-6">
+                  {/* Tarjeta de personas asociadas */}
+                  <div className="bg-gray-800 rounded-lg shadow">
+                    <div className="p-6 border-b border-gray-700">
+                      <h3 className="text-lg font-medium text-gray-300">Personas Asociadas</h3>
+                    </div>
+                    <div className="p-6">
+                      <div className="space-y-4">
                         <div>
-                          <span className="text-gray-400 block mb-1">Técnico:</span>
+                          <span className="text-gray-400 block mb-1">Agricultor:</span>
                           <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center mr-2">
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-400">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877a2.25 2.25 0 00-3.182 0L11.42 15.17zM6 9l4.5 4.5L21 6" />
+                            <div className="w-8 h-8 rounded-full bg-green-900/30 flex items-center justify-center mr-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-green-400">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                               </svg>
                             </div>
-                            <span className="text-white font-medium">{parcela.tecnico.nombre}</span>
+                            <span className="text-white font-medium">{parcela.agricultor?.nombre || "-"}</span>
                           </div>
                         </div>
-                      )}
+                        
+                        {userProfile === "admin" && parcela.tecnico && (
+                          <div>
+                            <span className="text-gray-400 block mb-1">Técnico:</span>
+                            <div className="flex items-center">
+                              <div className="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center mr-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-400">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877a2.25 2.25 0 00-3.182 0L11.42 15.17zM6 9l4.5 4.5L21 6" />
+                                </svg>
+                              </div>
+                              <span className="text-white font-medium">{parcela.tecnico.nombre}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
-                  {/* Historial de actividad */}
-                  <div className="p-6 border-t border-gray-700">
-                    <h3 className="text-lg font-medium text-gray-300 mb-4">Actividad reciente</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-start">
-                        <div className="h-8 w-8 rounded-full bg-green-900/30 flex items-center justify-center mr-3 mt-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-green-400">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <div className="text-gray-300">Análisis completado</div>
-                          <div className="text-sm text-gray-500">Hace 2 días</div>
+                  {/* Tarjeta del último análisis - Asegurarse que aparezca solo si hay analíticas */}
+                  {analiticas && analiticas.length > 0 && (
+                    <div className="bg-gray-800 rounded-lg shadow">
+                      <div className="p-6 border-b border-gray-700">
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-lg font-medium text-gray-300">Último Análisis</h3>
+                          <span className="text-sm text-gray-400">{analiticas[0].fecha}</span>
                         </div>
                       </div>
-                      <div className="flex items-start">
-                        <div className="h-8 w-8 rounded-full bg-blue-900/30 flex items-center justify-center mr-3 mt-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-400">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <div className="text-gray-300">Nueva recomendación</div>
-                          <div className="text-sm text-gray-500">Hace 4 días</div>
+                      <div className="p-6">
+                        {analiticas[0].path_foto && (
+                          <div className="mb-4">
+                            <div className="flex justify-center">
+                              <img 
+                                src={analiticas[0].path_foto} 
+                                alt="Último análisis" 
+                                className="max-h-40 object-contain rounded-lg"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Error+de+carga';
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {analiticas[0].resultado && (
+                          <div className="mt-3">
+                            <span className="text-gray-400 block mb-1">Resultado:</span>
+                            <div className="p-3 bg-gray-700 rounded-md text-sm text-white">
+                              {analiticas[0].resultado}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                          <Link 
+                            href="#analisis"
+                            className="text-green-400 hover:text-green-300 text-sm flex items-center"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              document.getElementById('analisis')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-1">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                            Ver todos los análisis
+                          </Link>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             ) : (
               <div className="bg-gray-800 rounded-lg shadow p-8 text-center">
                 <div className="text-gray-400 text-lg">No se encontró la parcela</div>
+              </div>
+            )}
+
+            {/* Sección de analíticas - solo mostrar si hay una parcela cargada */}
+            {!loading && !error && parcela && (
+              <div className="mt-8" id="analisis">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-green-400">Historial de Analíticas</h2>
+                  <button className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 cursor-pointer flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Nuevo Análisis
+                  </button>
+                </div>
+                
+                {renderAnaliticas()}
               </div>
             )}
           </div>
