@@ -1,12 +1,29 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useMensajes } from '../utils/MensajesContext';
+import { supabase } from '../utils/supabaseClient';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { mensajesNoLeidos } = useMensajes();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: adminData } = await supabase
+        .from('admin')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      setIsAdmin(!!adminData);
+    };
+    checkAdmin();
+  }, []);
 
   return (
     <aside className="bg-gray-800 w-64 border-r border-gray-700 flex-shrink-0">
@@ -64,8 +81,26 @@ export default function Sidebar() {
               </span>
             )}
           </Link>
+
+          {isAdmin && (
+            <Link 
+              href="/tecnicos" 
+              className={`flex items-center px-4 py-3 ${
+                pathname === '/tecnicos' 
+                  ? 'bg-gray-700 text-white'
+                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              } rounded-md transition-colors group`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 mr-3 ${
+                pathname === '/tecnicos' ? 'text-white' : 'text-gray-400 group-hover:text-white'
+              }`}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H4v-2a4 4 0 014-4h1m0-4a4 4 0 118 0 4 4 0 01-8 0z" />
+              </svg>
+              Técnicos
+            </Link>
+          )}
         </div>
       </nav>
     </aside>
   );
-} 
+}

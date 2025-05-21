@@ -14,7 +14,7 @@ export default function Header() {
   return (
     <header className="bg-gray-800 shadow-md z-10">
       <div className="w-full px-4 py-4 flex justify-between items-center">
-        <div className="flex items-center">
+        <div className="flex items-center cursor-pointer" onClick={() => router.push('/dashboard')}>
           <div className="w-14 h-14 mr-4 bg-green-900/30 rounded-full flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="w-8 h-8">
               <path d="M30 60 L30 80 L70 80 L70 60 Z" fill="#1e3a3a" />
@@ -48,4 +48,4 @@ export default function Header() {
       </div>
     </header>
   );
-} 
+}
