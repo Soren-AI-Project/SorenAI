@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../../utils/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { useMensajes } from '../../utils/MensajesContext';
+import { ApiClient } from '../../utils/apiClient';
 
 interface Mensaje {
   id: string;
@@ -41,89 +41,17 @@ export default function MensajesPage() {
 
   const cargarMensajes = async (tipo: string, id: string) => {
     try {
-      // Cargar mensajes entrantes
-      const { data: entrantes, error: errorEntrantes } = await obtenerMensajesEntrantes(tipo, id);
+      // ✅ SEGURO: Cargar mensajes entrantes desde la API
+      const entrantes = await ApiClient.obtenerMensajes(tipo, id, 'entrantes');
+      setMensajesEntrantes(entrantes.mensajes || []);
       
-      if (errorEntrantes) {
-        console.error("Error al cargar mensajes entrantes:", errorEntrantes);
-        return;
-      }
-      
-      setMensajesEntrantes(entrantes || []);
-      
-      // Cargar mensajes salientes
-      const { data: salientes, error: errorSalientes } = await obtenerMensajesSalientes(tipo, id);
-      
-      if (errorSalientes) {
-        console.error("Error al cargar mensajes salientes:", errorSalientes);
-        return;
-      }
-      
-      setMensajesSalientes(salientes || []);
+      // ✅ SEGURO: Cargar mensajes salientes desde la API
+      const salientes = await ApiClient.obtenerMensajes(tipo, id, 'salientes');
+      setMensajesSalientes(salientes.mensajes || []);
       
     } catch (error) {
       console.error("Error al cargar mensajes:", error);
     }
-  };
-
-  const obtenerMensajesEntrantes = async (tipo: string, id: string) => {
-    // Crear la consulta correcta según el tipo de usuario
-    let query;
-    
-    if (tipo === 'admin') {
-      query = supabase
-        .from('mensaje')
-        .select('*')
-        .eq('destinatario_tipo', 'admin')
-        .eq('destinatario_admin_id', id)
-        .order('fecha_envio', { ascending: false });
-    } else if (tipo === 'tecnico') {
-      query = supabase
-        .from('mensaje')
-        .select('*')
-        .eq('destinatario_tipo', 'tecnico')
-        .eq('destinatario_tecnico_id', id)
-        .order('fecha_envio', { ascending: false });
-    } else {
-      query = supabase
-        .from('mensaje')
-        .select('*')
-        .eq('destinatario_tipo', 'agricultor')
-        .eq('destinatario_agricultor_id', id)
-        .order('fecha_envio', { ascending: false });
-    }
-    
-    return await query;
-  };
-
-  const obtenerMensajesSalientes = async (tipo: string, id: string) => {
-    // Crear la consulta correcta según el tipo de usuario
-    let query;
-    
-    if (tipo === 'admin') {
-      query = supabase
-        .from('mensaje')
-        .select('*')
-        .eq('remitente_tipo', 'admin')
-        .eq('remitente_admin_id', id)
-        .order('fecha_envio', { ascending: false });
-    } else if (tipo === 'tecnico') {
-      query = supabase
-        .from('mensaje')
-        .select('*')
-        .eq('remitente_tipo', 'tecnico')
-        .eq('remitente_tecnico_id', id)
-        .order('fecha_envio', { ascending: false });
-    } else {
-      query = supabase
-        .from('mensaje')
-        .select('*')
-        .eq('remitente_tipo', 'agricultor')
-        .eq('remitente_agricultor_id', id)
-        .order('fecha_envio', { ascending: false });
-    }
-    
-    return await query;
   };
 
   const formatearFecha = (fechaStr: string) => {
@@ -198,25 +126,25 @@ export default function MensajesPage() {
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <h3 className={`text-lg ${!mensaje.leido ? 'font-bold text-white' : 'text-gray-300'}`}>
-                          {mensaje.asunto}
-                        </h3>
-                        <span className="text-sm text-gray-500">
+                        <div className="flex items-center">
+                          {!mensaje.leido && (
+                            <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                          )}
+                          <h3 className="text-white font-medium">{mensaje.asunto}</h3>
+                        </div>
+                        <span className="text-sm text-gray-400">
                           {formatearFecha(mensaje.fecha_envio)}
                         </span>
                       </div>
-                      <div className="text-gray-400 text-sm truncate mb-2">
-                        {mensaje.contenido}
-                      </div>
-                      <div className="flex justify-between items-center text-xs text-gray-500">
-                        <div>
-                          De: <span className="text-gray-400">{mensaje.remitente_nombre || `${mensaje.remitente_tipo}`}</span>
-                        </div>
-                        {!mensaje.leido && (
-                          <div className="bg-green-600/20 text-green-400 px-2 py-0.5 rounded text-xs border border-green-600/20">
-                            No leído
-                          </div>
-                        )}
+                      <p className="text-gray-300 text-sm mb-2">
+                        {mensaje.contenido.length > 100 
+                          ? `${mensaje.contenido.substring(0, 100)}...` 
+                          : mensaje.contenido
+                        }
+                      </p>
+                      <div className="text-xs text-gray-400">
+                        De: {mensaje.remitente_tipo} 
+                        {mensaje.remitente_nombre && ` - ${mensaje.remitente_nombre}`}
                       </div>
                     </div>
                   ))}
@@ -229,7 +157,7 @@ export default function MensajesPage() {
             <>
               {mensajesSalientes.length === 0 ? (
                 <div className="p-8 text-center">
-                  <div className="text-gray-400">No tienes mensajes enviados</div>
+                  <div className="text-gray-400">No has enviado mensajes</div>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-700">
@@ -239,18 +167,20 @@ export default function MensajesPage() {
                       className="p-4 hover:bg-gray-700 transition-colors cursor-pointer"
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg text-gray-300">
-                          {mensaje.asunto}
-                        </h3>
-                        <span className="text-sm text-gray-500">
+                        <h3 className="text-white font-medium">{mensaje.asunto}</h3>
+                        <span className="text-sm text-gray-400">
                           {formatearFecha(mensaje.fecha_envio)}
                         </span>
                       </div>
-                      <div className="text-gray-400 text-sm truncate mb-2">
-                        {mensaje.contenido}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Para: <span className="text-gray-400">{mensaje.destinatario_nombre || `${mensaje.destinatario_tipo}`}</span>
+                      <p className="text-gray-300 text-sm mb-2">
+                        {mensaje.contenido.length > 100 
+                          ? `${mensaje.contenido.substring(0, 100)}...` 
+                          : mensaje.contenido
+                        }
+                      </p>
+                      <div className="text-xs text-gray-400">
+                        Para: {mensaje.destinatario_tipo}
+                        {mensaje.destinatario_nombre && ` - ${mensaje.destinatario_nombre}`}
                       </div>
                     </div>
                   ))}

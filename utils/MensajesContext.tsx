@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from './supabaseClient';
+import { ApiClient } from './apiClient';
 
 interface MensajesContextType {
   mensajesNoLeidos: number;
@@ -24,37 +24,11 @@ export function MensajesProvider({ children }: { children: ReactNode }) {
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [userProfile, setUserProfile] = useState<{tipo: string, id: string} | null>(null);
 
-  // Función para cargar mensajes no leídos según el tipo de usuario
+  // ✅ SEGURO: Función para cargar mensajes no leídos usando la API
   const cargarMensajesNoLeidos = async (tipo: string, id: string) => {
     try {
-      let query;
-      
-      if (tipo === 'admin') {
-        query = supabase
-          .from('mensaje')
-          .select('id', { count: 'exact' })
-          .eq('destinatario_tipo', 'admin')
-          .eq('destinatario_admin_id', id)
-          .eq('leido', false);
-      } else if (tipo === 'tecnico') {
-        query = supabase
-          .from('mensaje')
-          .select('id', { count: 'exact' })
-          .eq('destinatario_tipo', 'tecnico')
-          .eq('destinatario_tecnico_id', id)
-          .eq('leido', false);
-      } else {
-        query = supabase
-          .from('mensaje')
-          .select('id', { count: 'exact' })
-          .eq('destinatario_tipo', 'agricultor')
-          .eq('destinatario_agricultor_id', id)
-          .eq('leido', false);
-      }
-      
-      const { count } = await query;
-      setMensajesNoLeidos(count || 0);
-      
+      const data = await ApiClient.contarMensajesNoLeidos(tipo, id);
+      setMensajesNoLeidos(data.mensajesNoLeidos || 0);
     } catch (error) {
       console.error("Error al cargar mensajes no leídos:", error);
     }

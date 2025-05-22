@@ -1,29 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useMensajes } from '../utils/MensajesContext';
-import { supabase } from '../utils/supabaseClient';
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { mensajesNoLeidos } = useMensajes();
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    const checkAdmin = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: adminData } = await supabase
-        .from('admin')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-      setIsAdmin(!!adminData);
-    };
-    checkAdmin();
-  }, []);
+  const { mensajesNoLeidos, userProfile } = useMensajes();
+  
+  // ✅ SEGURO: Determinar si es admin usando el perfil del contexto
+  const isAdmin = userProfile?.tipo === 'admin';
 
   return (
     <aside className="bg-gray-800 w-64 border-r border-gray-700 flex-shrink-0">
