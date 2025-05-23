@@ -27,6 +27,7 @@ export function useAuth(setUserProfileCallback?: (profile: UserProfile) => void)
       try {
         const { data } = await supabase.auth.getSession();
         
+        // Si no hay sesión, redirigir al login
         if (!data.session) {
           router.push('/login');
           return;
@@ -60,6 +61,26 @@ export function useAuth(setUserProfileCallback?: (profile: UserProfile) => void)
     };
 
     checkUser();
+
+    // Configurar listener básico para cambios de sesión
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_OUT') {
+          // Limpiar datos locales al cerrar sesión
+          localStorage.removeItem('supabase.auth.remember');
+          localStorage.removeItem('supabase.session.startTime');
+          setUser(null);
+          if (setUserProfileCallback) {
+            setUserProfileCallback(null);
+          }
+          router.push('/login');
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [router, setUserProfileCallback]);
 
   return { user, loading };

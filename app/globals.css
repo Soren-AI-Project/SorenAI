@@ -27,6 +27,37 @@ body {
 
 @layer utilities {
   .animate-spin-slow {
-    animation: spin 1.5s linear infinite;
+    animation: spin-slow 2s linear infinite;
   }
+}
+
+/* Animación personalizada para el spinner de carga */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Estilos para autofill de formularios */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #374151 inset !important;
+  -webkit-text-fill-color: white !important;
+}
+
+/* Mejoras para el checkbox personalizado */
+.peer:checked ~ .checkbox-checkmark {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.checkbox-checkmark {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s ease-in-out;
 }

@@ -17,5 +17,26 @@ if (process.env.NODE_ENV === 'development') {
 // Crear el cliente de Supabase con manejo de errores para el build
 export const supabase = createClient(
   supabaseUrl!, 
-  supabaseAnonKey!
+  supabaseAnonKey!,
+  {
+    auth: {
+      // Configurar persistencia para el lado del cliente
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
+);
+
+// Cliente para uso en servidor (sin persistencia)
+export const supabaseServer = createClient(
+  supabaseUrl!, 
+  supabaseAnonKey!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  }
 ); 

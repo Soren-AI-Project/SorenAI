@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Middleware simplificado para pruebas
 export async function middleware(req: NextRequest) {
-  // Permitir todas las redirecciones para pruebas
+  // Middleware simplificado que solo maneja redirecciones básicas
+  // La verificación de autenticación se maneja en el lado del cliente
+  
+  // Permitir todas las peticiones pasar normalmente
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: [
+    '/dashboard/:path*', 
+    '/parcelas/:path*', 
+    '/mensajes/:path*', 
+    '/tecnicos/:path*', 
+    '/login'
+  ],
 }; 
