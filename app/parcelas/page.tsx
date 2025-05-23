@@ -6,6 +6,7 @@ import Link from "next/link";
 import Layout from "../../components/Layout";
 import { useMensajes } from "../../utils/MensajesContext";
 import { ApiClient } from "../../utils/apiClient";
+import CrearParcelaModal from "../../components/CrearParcelaModal";
 
 // Deshabilitar el prerenderizado estático para páginas que requieren autenticación
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,7 @@ export default function ParcelasPage() {
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const router = useRouter();
   const { userProfile: perfil } = useMensajes();
 
@@ -57,6 +59,19 @@ export default function ParcelasPage() {
       fetchParcelas();
     }
   }, [perfil]);
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleParcelaCreada = (nuevaParcela: Parcela) => {
+    // Agregar la nueva parcela a la lista
+    setParcelas(prev => [...prev, nuevaParcela]);
+  };
 
   if (loading) {
     return (
@@ -98,6 +113,18 @@ export default function ParcelasPage() {
                 Gestiona y supervisa todas las parcelas asignadas
               </p>
             </div>
+            {/* Mostrar botón solo para técnicos */}
+            {perfil?.tipo === 'tecnico' && (
+              <button 
+                onClick={handleOpenModal}
+                className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 cursor-pointer flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Nueva Parcela
+              </button>
+            )}
           </div>
         </div>
 
@@ -168,6 +195,16 @@ export default function ParcelasPage() {
           </div>
         )}
       </div>
+
+      {/* Modal para crear parcela - Solo para técnicos */}
+      {perfil?.tipo === 'tecnico' && (
+        <CrearParcelaModal 
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          onParcelaCreada={handleParcelaCreada}
+          tecnicoId={perfil.id}
+        />
+      )}
     </Layout>
   );
 } 

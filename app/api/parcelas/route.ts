@@ -102,4 +102,74 @@ export async function GET(request: NextRequest) {
     console.error('Error obteniendo parcelas:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const body = await request.json();
+    const { cultivo, hectareas, agricultorId, tecnicoId } = body;
+
+    // Validar datos requeridos
+    if (!cultivo || !hectareas || !agricultorId || !tecnicoId) {
+      return NextResponse.json({ 
+        error: 'Todos los campos son requeridos: cultivo, hectareas, agricultorId, tecnicoId' 
+      }, { status: 400 });
+    }
+
+    // Validar que el agricultor pertenece al técnico
+    const { data: agricultor, error: agricultorError } = await supabase
+      .from('agricultor')
+      .select('id, nombre')
+      .eq('id', agricultorId)
+      .eq('id_tecnico', tecnicoId)
+      .single();
+
+    if (agricultorError || !agricultor) {
+      return NextResponse.json({ 
+        error: 'El agricultor no está asignado a este técnico' 
+      }, { status: 403 });
+    }
+
+    // Crear la parcela
+    const { data: nuevaParcela, error: parcelaError } = await supabase
+      .from('parcela')
+      .insert({
+        cultivo,
+        ha: parseFloat(hectareas),
+        id_agricultor: agricultorId,
+        estado: true
+      })
+      .select(`
+        *,
+        agricultor:id_agricultor (
+          id,
+          nombre
+        )
+      `)
+      .single();
+
+    if (parcelaError) {
+      console.error('Error creando parcela:', parcelaError);
+      return NextResponse.json({ 
+        error: 'Error al crear la parcela' 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Parcela creada exitosamente',
+      parcela: nuevaParcela
+    });
+
+  } catch (error) {
+    console.error('Error en POST /api/parcelas:', error);
+    return NextResponse.json({ 
+      error: 'Error interno del servidor' 
+    }, { status: 500 });
+  }
 } 

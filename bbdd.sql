@@ -60,7 +60,8 @@ create table public.parcela (
   id uuid primary key default gen_random_uuid(),
   id_agricultor uuid not null references public.agricultor(id) on delete cascade,
   cultivo text not null,
-  ha float
+  ha float,
+  estado boolean not null default true
 );
 
 -- Tabla Analitica

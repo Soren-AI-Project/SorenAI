@@ -1,24 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ApiClient } from '../utils/apiClient';
 
-interface CrearTecnicoModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onTecnicoCreado: (tecnico: any) => void;
+interface Agricultor {
+  id: string;
+  nombre: string;
 }
 
-export default function CrearTecnicoModal({ isOpen, onClose, onTecnicoCreado }: CrearTecnicoModalProps) {
+interface CrearParcelaModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onParcelaCreada: (parcela: any) => void;
+  tecnicoId: string;
+}
+
+export default function CrearParcelaModal({ 
+  isOpen, 
+  onClose, 
+  onParcelaCreada, 
+  tecnicoId 
+}: CrearParcelaModalProps) {
   const [formData, setFormData] = useState({
-    nombre: '',
-    email: '',
-    password: ''
+    cultivo: '',
+    hectareas: '',
+    agricultorId: ''
   });
+  const [agricultores, setAgricultores] = useState<Agricultor[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingAgricultores, setLoadingAgricultores] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Cargar agricultores cuando se abre el modal
+  useEffect(() => {
+    if (isOpen && tecnicoId) {
+      cargarAgricultores();
+    }
+  }, [isOpen, tecnicoId]);
+
+  const cargarAgricultores = async () => {
+    setLoadingAgricultores(true);
+    try {
+      const response = await ApiClient.obtenerAgricultores(tecnicoId);
+      setAgricultores(response.agricultores || []);
+    } catch (error) {
+      console.error('Error cargando agricultores:', error);
+      setError('Error al cargar los agricultores');
+    } finally {
+      setLoadingAgricultores(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -33,36 +66,38 @@ export default function CrearTecnicoModal({ isOpen, onClose, onTecnicoCreado }: 
 
     try {
       // Validaciones del lado del cliente
-      if (!formData.nombre.trim()) {
-        throw new Error('El nombre es requerido');
+      if (!formData.cultivo.trim()) {
+        throw new Error('El cultivo es requerido');
       }
-      if (!formData.email.trim()) {
-        throw new Error('El email es requerido');
+      if (!formData.hectareas.trim()) {
+        throw new Error('Las hectáreas son requeridas');
       }
-      if (!formData.password.trim()) {
-        throw new Error('La contraseña es requerida');
-      }
-      if (formData.password.length < 6) {
-        throw new Error('La contraseña debe tener al menos 6 caracteres');
+      if (!formData.agricultorId) {
+        throw new Error('Debe seleccionar un agricultor');
       }
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        throw new Error('Formato de email inválido');
+      const hectareas = parseFloat(formData.hectareas);
+      if (isNaN(hectareas) || hectareas <= 0) {
+        throw new Error('Las hectáreas deben ser un número positivo');
       }
 
-      // Crear técnico
-      const result = await ApiClient.crearTecnico(formData);
+      // Crear parcela
+      const result = await ApiClient.crearParcela({
+        cultivo: formData.cultivo.trim(),
+        hectareas: hectareas,
+        agricultorId: formData.agricultorId,
+        tecnicoId: tecnicoId
+      });
       
       if (result.success) {
         // Notificar al componente padre
-        onTecnicoCreado(result.tecnico);
+        onParcelaCreada(result.parcela);
         
         // Limpiar formulario y cerrar modal
-        setFormData({ nombre: '', email: '', password: '' });
+        setFormData({ cultivo: '', hectareas: '', agricultorId: '' });
         onClose();
       } else {
-        throw new Error(result.error || 'Error desconocido al crear técnico');
+        throw new Error(result.error || 'Error desconocido al crear parcela');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -73,7 +108,7 @@ export default function CrearTecnicoModal({ isOpen, onClose, onTecnicoCreado }: 
 
   const handleClose = () => {
     if (!loading) {
-      setFormData({ nombre: '', email: '', password: '' });
+      setFormData({ cultivo: '', hectareas: '', agricultorId: '' });
       setError(null);
       onClose();
     }
@@ -86,7 +121,7 @@ export default function CrearTecnicoModal({ isOpen, onClose, onTecnicoCreado }: 
       <div className="bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-screen overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-700">
-          <h3 className="text-xl font-semibold text-white">Crear Nuevo Técnico</h3>
+          <h3 className="text-xl font-semibold text-white">Crear Nueva Parcela</h3>
           <button
             onClick={handleClose}
             disabled={loading}
@@ -101,62 +136,74 @@ export default function CrearTecnicoModal({ isOpen, onClose, onTecnicoCreado }: 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-4">
-            {/* Nombre */}
+            {/* Cultivo */}
             <div>
-              <label htmlFor="nombre" className="block text-sm font-medium text-gray-300 mb-2">
-                Nombre completo *
+              <label htmlFor="cultivo" className="block text-sm font-medium text-gray-300 mb-2">
+                Cultivo *
               </label>
               <input
                 type="text"
-                id="nombre"
-                name="nombre"
-                value={formData.nombre}
+                id="cultivo"
+                name="cultivo"
+                value={formData.cultivo}
                 onChange={handleInputChange}
                 required
                 disabled={loading}
                 className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
-                placeholder="Ej: Juan Pérez"
+                placeholder="Ej: Maíz, Trigo, Tomate..."
               />
             </div>
 
-            {/* Email */}
+            {/* Hectáreas */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Correo electrónico *
+              <label htmlFor="hectareas" className="block text-sm font-medium text-gray-300 mb-2">
+                Hectáreas *
               </label>
               <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
+                type="number"
+                id="hectareas"
+                name="hectareas"
+                value={formData.hectareas}
                 onChange={handleInputChange}
                 required
                 disabled={loading}
+                min="0.1"
+                step="0.1"
                 className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
-                placeholder="Ej: juan@empresa.com"
+                placeholder="Ej: 5.5"
               />
             </div>
 
-            {/* Contraseña */}
+            {/* Agricultor */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                Contraseña *
+              <label htmlFor="agricultorId" className="block text-sm font-medium text-gray-300 mb-2">
+                Agricultor *
               </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-                disabled={loading}
-                minLength={6}
-                className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
-                placeholder="Mínimo 6 caracteres"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                La contraseña debe tener al menos 6 caracteres
-              </p>
+              {loadingAgricultores ? (
+                <div className="text-gray-400 text-sm">Cargando agricultores...</div>
+              ) : (
+                <select
+                  id="agricultorId"
+                  name="agricultorId"
+                  value={formData.agricultorId}
+                  onChange={handleInputChange}
+                  required
+                  disabled={loading}
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:opacity-50"
+                >
+                  <option value="">Seleccionar agricultor</option>
+                  {agricultores.map((agricultor) => (
+                    <option key={agricultor.id} value={agricultor.id}>
+                      {agricultor.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {!loadingAgricultores && agricultores.length === 0 && (
+                <p className="text-sm text-gray-400 mt-1">
+                  No hay agricultores asignados. Contacte con el administrador.
+                </p>
+              )}
             </div>
           </div>
 
@@ -179,7 +226,7 @@ export default function CrearTecnicoModal({ isOpen, onClose, onTecnicoCreado }: 
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || loadingAgricultores || agricultores.length === 0}
               className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 transition-colors flex items-center"
             >
               {loading && (
@@ -188,7 +235,7 @@ export default function CrearTecnicoModal({ isOpen, onClose, onTecnicoCreado }: 
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
               )}
-              {loading ? 'Creando...' : 'Crear Técnico'}
+              {loading ? 'Creando...' : 'Crear Parcela'}
             </button>
           </div>
         </form>

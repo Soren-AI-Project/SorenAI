@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { useRememberMe } from '../../utils/useRememberMe';
+import { SessionManager } from '../../utils/sessionManager';
 import Link from 'next/link';
 
 // Deshabilitar el prerenderizado estático para páginas que usan autenticación
@@ -38,38 +38,59 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const router = useRouter();
-  const { setRememberPreference, getRememberPreference } = useRememberMe();
 
   // Verificar si ya existe una sesión activa al cargar la página
   useEffect(() => {
     const checkExistingSession = async () => {
+      console.log('🔍 Verificando sesión existente...');
+      
       try {
+        // Verificar si hay una sesión guardada localmente
+        const savedSession = SessionManager.getSavedSessionInfo();
+        const rememberPreference = SessionManager.getRememberPreference();
+        
+        console.log('💾 Sesión guardada:', savedSession);
+        console.log('📖 Preferencia remember:', rememberPreference);
+        
+        // Establecer el estado del checkbox
+        setRememberMe(rememberPreference);
+        
+        // Verificar sesión de Supabase
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('🔐 Sesión de Supabase:', !!session);
         
         if (session && session.user) {
-          // Ya existe una sesión activa, redirigir al dashboard
-          console.log('Sesión existente encontrada, redirigiendo...');
+          console.log('✅ Sesión activa encontrada, redirigiendo...');
+          // Actualizar información de sesión guardada
+          SessionManager.saveSessionInfo(session.user.id, session.user.email || '');
           router.push('/dashboard');
           return;
         }
-
-        // Si no hay sesión, verificar si el usuario había marcado "Recordarme" anteriormente
-        const savedRememberPreference = getRememberPreference();
-        setRememberMe(savedRememberPreference);
+        
+        // Si no hay sesión de Supabase pero hay sesión guardada y no está expirada
+        if (savedSession && !SessionManager.isSessionExpired()) {
+          console.log('🔄 Intentando recuperar sesión desde información guardada...');
+          // Aquí podrías intentar validar la sesión con el servidor si fuera necesario
+        }
+        
+        setCheckingSession(false);
       } catch (error) {
-        console.error('Error verificando sesión existente:', error);
-      } finally {
+        console.error('❌ Error verificando sesión existente:', error);
         setCheckingSession(false);
       }
     };
 
     checkExistingSession();
-  }, [router, getRememberPreference]);
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    console.log('🚀 Iniciando proceso de login...');
+    console.log('📧 Email:', email);
+    console.log('✅ Remember me:', rememberMe);
 
     try {
       // Autenticación con Supabase
@@ -79,25 +100,28 @@ export default function LoginPage() {
       });
       
       if (error) {
-        // Traducir el mensaje de error
+        console.error('❌ Error de autenticación:', error);
         setError(translateError(error.message));
         setLoading(false);
-      } else if (data?.session) {
-        console.log('Login exitoso, sesión creada');
+      } else if (data?.session && data?.user) {
+        console.log('✅ Login exitoso');
+        console.log('👤 Usuario:', data.user.id, data.user.email);
         
-        // Configurar preferencia de "Recordarme" usando el hook
-        setRememberPreference(rememberMe);
-        console.log('Preferencia de recordar guardada:', rememberMe);
-
-        // Login exitoso, redirigir inmediatamente
-        console.log('Redirigiendo al dashboard...');
+        // Configurar preferencia de recordar ANTES de guardar la sesión
+        SessionManager.setRememberPreference(rememberMe);
+        
+        // Guardar información de sesión
+        SessionManager.saveSessionInfo(data.user.id, data.user.email || '');
+        
+        console.log('➡️ Redirigiendo al dashboard...');
         router.push('/dashboard');
       } else {
+        console.error('❌ Login fallido: no hay sesión o usuario');
         setError("No se pudo iniciar sesión. Inténtelo de nuevo.");
         setLoading(false);
       }
     } catch (err) {
-      console.error("Error en el proceso de login:", err);
+      console.error("❌ Error inesperado en login:", err);
       setError("Ocurrió un error inesperado. Por favor, inténtelo de nuevo.");
       setLoading(false);
     }
@@ -209,31 +233,24 @@ export default function LoginPage() {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <label className="flex items-center cursor-pointer select-none">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={e => setRememberMe(e.target.checked)}
-                  className="peer sr-only"
-                />
-                <span className="w-5 h-5 mr-2 flex items-center justify-center border-2 border-green-500 rounded bg-gray-700 peer-checked:bg-green-600 peer-checked:border-green-600 transition-colors duration-200">
-                  <svg
-                    className="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity duration-200"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                  >
-                    <path
-                      d="M5 10.5L9 14L15 7"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span className="block text-sm text-gray-400">Recuérdame</span>
+              <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => {
+                  console.log('Checkbox clicked:', e.target.checked);
+                  setRememberMe(e.target.checked);
+                }}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  marginRight: '8px',
+                  accentColor: '#10b981'
+                }}
+              />
+              <label htmlFor="remember-me" className="text-sm text-gray-400 cursor-pointer">
+                Recuérdame
               </label>
             </div>
 

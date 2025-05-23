@@ -44,43 +44,6 @@ function LayoutContent({ children }: LayoutProps) {
 
 // Componente principal que proporciona el contexto
 export default function Layout({ children }: LayoutProps) {
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-
-  useEffect(() => {
-    // Solo ejecutar en el cliente, no durante el prerenderizado
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const checkUser = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        
-        if (!data.session) {
-          router.push('/login');
-          return;
-        }
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error verificando sesión:', error);
-        router.push('/login');
-      }
-    };
-
-    checkUser();
-  }, [router]);
-
-  // Durante el prerenderizado o carga inicial
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white text-2xl">Cargando...</div>
-      </div>
-    );
-  }
-
   return (
     <LayoutContent>
       {children}

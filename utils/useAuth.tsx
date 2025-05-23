@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from './supabaseClient';
 import { ApiClient } from './apiClient';
+import { SessionManager } from './sessionManager';
 
 // Tipo para el perfil de usuario
 type UserProfile = {
@@ -18,67 +19,125 @@ export function useAuth(setUserProfileCallback?: (profile: UserProfile) => void)
   const router = useRouter();
 
   useEffect(() => {
-    // Solo ejecutar en el cliente, no durante el prerenderizado
+    // Solo ejecutar en el cliente
     if (typeof window === 'undefined') {
       return;
     }
 
+    let mounted = true;
+
     const checkUser = async () => {
+      console.log('🔍 useAuth: Verificando usuario...');
+      
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         
-        // Si no hay sesión, redirigir al login
-        if (!data.session) {
-          router.push('/login');
-          return;
+        if (!mounted) return;
+
+        console.log('🔐 Sesión de Supabase en useAuth:', !!session);
+
+        if (!session?.user) {
+          // No hay sesión de Supabase, verificar si hay sesión local válida
+          const savedSession = SessionManager.getSavedSessionInfo();
+          const isExpired = SessionManager.isSessionExpired();
+          
+          console.log('💾 Sesión local:', savedSession);
+          console.log('⏰ Sesión expirada:', isExpired);
+          
+          if (!savedSession || isExpired) {
+            console.log('❌ No hay sesión válida, redirigiendo al login...');
+            // Limpiar cualquier sesión local inválida
+            SessionManager.clearSession();
+            // Dar tiempo para que Supabase intente recuperar la sesión
+            setTimeout(() => {
+              if (mounted) {
+                router.push('/login');
+              }
+            }, 1000);
+            return;
+          } else {
+            console.log('✅ Sesión local válida, continuando...');
+            // Hay una sesión local válida, no redirigir todavía
+          }
+        } else {
+          console.log('✅ Sesión de Supabase válida');
+          setUser(session.user);
+          
+          // Actualizar información de sesión local
+          SessionManager.saveSessionInfo(session.user.id, session.user.email || '');
+        }
+
+        // Obtener perfil del usuario si tenemos ID
+        const userId = session?.user?.id || SessionManager.getSavedSessionInfo()?.userId;
+        
+        if (userId && setUserProfileCallback) {
+          try {
+            console.log('👤 Obteniendo perfil para usuario:', userId);
+            const response = await ApiClient.obtenerPerfilUsuario(userId);
+            
+            if (mounted && response.userProfile) {
+              setUserProfileCallback(response.userProfile);
+            }
+          } catch (error) {
+            console.error('❌ Error obteniendo perfil:', error);
+          }
         }
         
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
-        
-        if (!user?.id) {
-          setLoading(false);
-          return;
-        }
-        
-        // ✅ SEGURO: Usar la API para obtener el perfil de usuario
-        const response = await ApiClient.obtenerPerfilUsuario(user.id);
-        
-        if (response.userProfile) { 
-          if (setUserProfileCallback) { 
-            setUserProfileCallback(response.userProfile);     
-          }       
-        } else {      
-          console.error('❌ No se encontró perfil de usuario para ID:', user.id); 
-          console.error('📋 Necesitas agregar este usuario a la tabla tecnico en Supabase');
-          console.error('🔗 Email del usuario:', user.email);       
-        }
       } catch (error) {
-        console.error('Error obteniendo perfil de usuario:', error);
+        console.error('❌ Error en verificación de sesión:', error);
+        if (mounted) {
+          router.push('/login');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
+    // Verificación inicial
     checkUser();
 
-    // Configurar listener básico para cambios de sesión
+    // Configurar listener para cambios de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_OUT') {
-          // Limpiar datos locales al cerrar sesión
-          localStorage.removeItem('supabase.auth.remember');
-          localStorage.removeItem('supabase.session.startTime');
+        if (!mounted) return;
+
+        console.log('🔄 Auth state changed:', event, !!session);
+
+        if (event === 'SIGNED_OUT' || !session) {
+          console.log('🚪 Usuario cerró sesión');
+          SessionManager.clearSession();
           setUser(null);
           if (setUserProfileCallback) {
             setUserProfileCallback(null);
           }
           router.push('/login');
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          console.log('🔑 Usuario inició sesión');
+          setUser(session.user);
+          setLoading(false);
+          
+          // Actualizar información de sesión
+          SessionManager.saveSessionInfo(session.user.id, session.user.email || '');
+          
+          // Obtener perfil solo si es necesario
+          if (setUserProfileCallback) {
+            try {
+              const response = await ApiClient.obtenerPerfilUsuario(session.user.id);
+              if (mounted && response.userProfile) {
+                setUserProfileCallback(response.userProfile);
+              }
+            } catch (error) {
+              console.error('❌ Error obteniendo perfil en login:', error);
+            }
+          }
         }
       }
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [router, setUserProfileCallback]);

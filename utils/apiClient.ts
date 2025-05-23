@@ -171,4 +171,48 @@ export class ApiClient {
       throw error;
     }
   }
+
+  static async obtenerAgricultores(tecnicoId: string) {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/agricultores?tecnicoId=${encodeURIComponent(tecnicoId)}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error obteniendo agricultores:', error);
+      throw error;
+    }
+  }
+
+  static async crearParcela(parcelaData: { 
+    cultivo: string; 
+    hectareas: number; 
+    agricultorId: string; 
+    tecnicoId: string; 
+  }) {
+    try {
+      const response = await fetch(`${this.baseUrl}/parcelas`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(parcelaData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error creando parcela:', error);
+      throw error;
+    }
+  }
 } 
