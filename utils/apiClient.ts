@@ -1,7 +1,24 @@
 // Cliente API seguro para llamadas al servidor
+import { supabase } from './supabaseClient';
+
 export class ApiClient {
   // Usar la variable de entorno NEXT_PUBLIC_BACKEND_URL o caer en '/api' si no está definida
   private static baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+
+  // Método privado para obtener el token de autorización
+  private static async getAuthToken() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token;
+  }
+
+  // Método privado para crear headers con autenticación
+  private static async getAuthHeaders() {
+    const token = await this.getAuthToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
+  }
 
   static async obtenerParcelas(userType: string, userId: string) {
     try {
@@ -92,19 +109,43 @@ export class ApiClient {
     }
   }
 
-  static async obtenerTecnicos(userType: string, userId: string) {
+  static async obtenerTecnicos() {
     try {
-      const response = await fetch(
-        `${this.baseUrl}/tecnicos?userType=${encodeURIComponent(userType)}&userId=${encodeURIComponent(userId)}`
-      );
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseUrl}/tecnicos`, {
+        method: 'GET',
+        headers
+      });
       
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
       }
       
       return await response.json();
     } catch (error) {
       console.error('Error obteniendo técnicos:', error);
+      throw error;
+    }
+  }
+
+  static async crearTecnico(tecnicoData: { nombre: string; email: string; password: string }) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseUrl}/tecnicos`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(tecnicoData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error creando técnico:', error);
       throw error;
     }
   }

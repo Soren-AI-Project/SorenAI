@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../utils/useAuth";
 import { ApiClient } from "../../utils/apiClient";
 import Layout from "../../components/Layout";
+import CrearTecnicoModal from "../../components/CrearTecnicoModal";
+import { supabase } from "../../utils/supabaseClient";
 
 // Deshabilitar el prerenderizado estático para páginas que requieren autenticación
 export const dynamic = 'force-dynamic';
@@ -24,6 +26,7 @@ export default function TecnicosPage() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'listado'>('listado');
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useAuth(setUserProfile);
 
@@ -41,11 +44,15 @@ export default function TecnicosPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await ApiClient.obtenerTecnicos(userProfile.tipo, userProfile.id);
-      setTecnicos(response.tecnicos || []);
+      const response = await ApiClient.obtenerTecnicos();
+      if (response.success) {
+        setTecnicos(response.tecnicos || []);
+      } else {
+        throw new Error(response.error || 'Error desconocido');
+      }
     } catch (error) {
       console.error('Error obteniendo técnicos:', error);
-      setError('Error al cargar los técnicos. Por favor, inténtalo de nuevo.');
+      setError(error instanceof Error ? error.message : 'Error al cargar los técnicos. Por favor, inténtalo de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -56,10 +63,31 @@ export default function TecnicosPage() {
     router.push(`/tecnicos/${tecnicoId}`);
   };
 
+  const handleTecnicoCreado = (nuevoTecnico: Tecnico) => {
+    // Agregar el nuevo técnico a la lista
+    setTecnicos(prev => [...prev, nuevoTecnico]);
+  };
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
   if (loading) {
     return (
       <Layout>
-        <div className="p-8 text-center text-green-500">Cargando técnicos...</div>
+        <div className="flex items-center justify-center min-h-64">
+          <div className="flex items-center space-x-2">
+            <svg className="animate-spin h-6 w-6 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span className="text-green-500 text-lg">Cargando técnicos...</span>
+          </div>
+        </div>
       </Layout>
     );
   }
@@ -68,7 +96,15 @@ export default function TecnicosPage() {
     return (
       <Layout>
         <div className="p-8 text-center">
-          <div className="text-red-400 mb-4">{error}</div>
+          <div className="bg-red-900/40 border border-red-800 text-red-300 p-4 rounded-md mb-4">
+            <div className="flex items-center justify-center mb-2">
+              <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Error al cargar técnicos
+            </div>
+            <p className="text-sm">{error}</p>
+          </div>
           <button 
             onClick={fetchTecnicos}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
@@ -86,6 +122,7 @@ export default function TecnicosPage() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-green-400">Técnicos</h1>
           <button 
+            onClick={handleOpenModal}
             className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 cursor-pointer flex items-center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
@@ -113,7 +150,19 @@ export default function TecnicosPage() {
         <div className="bg-gray-800 rounded-lg shadow overflow-hidden">
           {tecnicos.length === 0 ? (
             <div className="p-8 text-center">
-              <div className="text-gray-400">No tienes técnicos registrados</div>
+              <div className="flex flex-col items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-gray-500 mb-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                </svg>
+                <div className="text-gray-400 text-lg mb-2">No tienes técnicos registrados</div>
+                <div className="text-gray-500 text-sm mb-4">Crea tu primer técnico para comenzar a gestionar tu equipo</div>
+                <button
+                  onClick={handleOpenModal}
+                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors duration-200"
+                >
+                  Crear Primer Técnico
+                </button>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-gray-700">
@@ -183,6 +232,13 @@ export default function TecnicosPage() {
           )}
         </div>
       </div>
+
+      {/* Modal para crear técnico */}
+      <CrearTecnicoModal 
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onTecnicoCreado={handleTecnicoCreado}
+      />
     </Layout>
   );
 }
