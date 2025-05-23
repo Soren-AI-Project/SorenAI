@@ -8,6 +8,9 @@ import { useAuth } from "../../../utils/useAuth";
 import { ApiClient } from "../../../utils/apiClient";
 import Layout from "../../../components/Layout";
 
+// Deshabilitar el prerenderizado estático para páginas que requieren autenticación
+export const dynamic = 'force-dynamic';
+
 interface Agricultor {
   id: string;
   nombre: string;

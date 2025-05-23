@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Clave del servidor, no pública
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
 interface Agricultor {
   id: string;
   nombre?: string;
@@ -17,6 +12,12 @@ interface Tecnico {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Clave del servidor, no pública
+    
+    // Inicializar el cliente dentro de la función
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
     const { searchParams } = new URL(request.url);
     const userType = searchParams.get('userType');
     const userId = searchParams.get('userId');

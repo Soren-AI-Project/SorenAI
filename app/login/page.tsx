@@ -5,6 +5,9 @@ import { supabase } from '../../utils/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+// Deshabilitar el prerenderizado estático para páginas que usan autenticación
+export const dynamic = 'force-dynamic';
+
 // Mapeo de mensajes de error de Supabase al español
 const errorMessages: Record<string, string> = {
   'Invalid login credentials': 'Credenciales de acceso inválidas',

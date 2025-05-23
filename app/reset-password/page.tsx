@@ -5,6 +5,9 @@ import { supabase } from '../../utils/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+// Deshabilitar el prerenderizado estático para páginas que usan autenticación
+export const dynamic = 'force-dynamic';
+
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');

@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { useMensajes } from '../../utils/MensajesContext';
 import { ApiClient } from '../../utils/apiClient';
+
+// Deshabilitar el prerenderizado estático para páginas que requieren autenticación
+export const dynamic = 'force-dynamic';
 
 interface Mensaje {
   id: string;

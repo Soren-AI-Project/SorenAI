@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Cliente de Supabase con permisos completos (solo en servidor)
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
 export async function GET(request: NextRequest) {
   try {
+    // Inicializar Supabase dentro de la función
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    
+    // Cliente de Supabase con permisos completos (solo en servidor)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    
     console.log('=== DEBUG API TECNICOS ===');
     console.log('URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'OK' : 'MISSING');
     console.log('Service Key:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'OK' : 'MISSING');

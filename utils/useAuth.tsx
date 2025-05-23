@@ -18,32 +18,39 @@ export function useAuth(setUserProfileCallback?: (profile: UserProfile) => void)
   const router = useRouter();
 
   useEffect(() => {
+    // Solo ejecutar en el cliente, no durante el prerenderizado
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const checkUser = async () => {
-      const { data } = await supabase.auth.getSession();
-      
-      if (!data.session) {
-        router.push('/login');
-        return;
-      }
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
-      
       try {
+        const { data } = await supabase.auth.getSession();
+        
+        if (!data.session) {
+          router.push('/login');
+          return;
+        }
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+        
+        if (!user?.id) {
+          setLoading(false);
+          return;
+        }
+        
         // ✅ SEGURO: Usar la API para obtener el perfil de usuario
         const response = await ApiClient.obtenerPerfilUsuario(user.id);
         
-        if (response.userProfile) {
-          if (setUserProfileCallback) {
-            setUserProfileCallback(response.userProfile);
-          }
-        } else {
-          console.error('No se encontró perfil de usuario para:', user.id);
+        if (response.userProfile) { 
+          if (setUserProfileCallback) { 
+            setUserProfileCallback(response.userProfile);     
+          }       
+        } else {      
+          console.error('❌ No se encontró perfil de usuario para ID:', user.id); 
+          console.error('📋 Necesitas agregar este usuario a la tabla tecnico en Supabase');
+          console.error('🔗 Email del usuario:', user.email);       
         }
       } catch (error) {
         console.error('Error obteniendo perfil de usuario:', error);

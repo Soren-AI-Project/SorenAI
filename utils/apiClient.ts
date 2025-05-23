@@ -1,6 +1,7 @@
 // Cliente API seguro para llamadas al servidor
 export class ApiClient {
-  private static baseUrl = '/api';
+  // Usar la variable de entorno NEXT_PUBLIC_BACKEND_URL o caer en '/api' si no está definida
+  private static baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
 
   static async obtenerParcelas(userType: string, userId: string) {
     try {
@@ -113,6 +114,11 @@ export class ApiClient {
       const response = await fetch(
         `${this.baseUrl}/profile?userId=${encodeURIComponent(userId)}`
       );
+      
+      if (response.status === 404) {
+        // 404 es válido - significa que el usuario no se encontró en ninguna tabla
+        return { userProfile: null };
+      }
       
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
