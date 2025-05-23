@@ -10,39 +10,25 @@ export async function GET(request: NextRequest) {
     // Cliente de Supabase con permisos completos (solo en servidor)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     
-    console.log('=== DEBUG API TECNICOS ===');
-    console.log('URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'OK' : 'MISSING');
-    console.log('Service Key:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'OK' : 'MISSING');
-    
     // Obtener parámetros de la URL
     const { searchParams } = new URL(request.url);
     const userType = searchParams.get('userType');
     const userId = searchParams.get('userId');
 
-    console.log('Parámetros recibidos:', { userType, userId });
-
     if (!userType || !userId) {
-      console.log('Error: Parámetros faltantes');
       return NextResponse.json({ error: 'Parámetros requeridos faltantes' }, { status: 400 });
     }
 
     // Verificar que el usuario sea admin
     if (userType !== 'admin') {
-      console.log('Error: Usuario no es admin');
       return NextResponse.json({ error: 'Acceso denegado. Solo admins pueden ver técnicos.' }, { status: 403 });
     }
-
-    console.log('Intentando consultar técnicos para id_admin:', userId);
 
     // Obtener técnicos del admin
     const { data: tecnicos, error: tecnicosError } = await supabaseAdmin
       .from('tecnico')
       .select('id, nombre, user_id, id_admin')
       .eq('id_admin', userId);
-
-    console.log('Resultado de la consulta:');
-    console.log('- Datos:', tecnicos);
-    console.log('- Error:', tecnicosError);
 
     if (tecnicosError) {
       console.error('Error detallado de Supabase:', JSON.stringify(tecnicosError, null, 2));
@@ -88,7 +74,6 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    console.log('Éxito: Retornando', tecnicosCompletos.length, 'técnicos con información completa');
     return NextResponse.json({ tecnicos: tecnicosCompletos });
 
   } catch (error) {

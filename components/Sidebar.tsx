@@ -11,13 +11,6 @@ export default function Sidebar() {
   // ✅ SEGURO: Determinar si es admin usando el perfil del contexto
   const isAdmin = userProfile?.tipo === 'admin';
 
-  // 🔍 DEBUG: Logging para diagnosticar el problema
-  console.log('🔍 Sidebar Debug:');
-  console.log('- userProfile:', userProfile);
-  console.log('- userProfile?.tipo:', userProfile?.tipo);
-  console.log('- isAdmin:', isAdmin);
-  console.log('- Comparación exacta:', userProfile?.tipo === 'admin');
-
   return (
     <aside className="bg-gray-800 w-64 border-r border-gray-700 flex-shrink-0">
       <nav className="mt-6 px-4">

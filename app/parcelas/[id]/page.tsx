@@ -282,7 +282,6 @@ export default function DetalleParcelaPage() {
               className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors duration-200 flex items-center cursor-pointer"
               onClick={() => {
                 // Aquí puedes implementar la lógica para realizar un análisis
-                console.log('Realizar análisis para parcela:', parcela.id);
                 // Por ejemplo: router.push(`/parcelas/${parcela.id}/analizar`);
               }}
             >

@@ -8,46 +8,23 @@ export async function GET(request: NextRequest) {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('🔍 === TEST ENV DEBUG ===');
-    
     // 1. Obtener todos los usuarios de auth.users
     const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-    console.log('📋 Usuarios en auth.users:');
-    console.log('- Total usuarios:', authUsers.users?.length || 0);
-    authUsers.users?.forEach((user, index) => {
-      console.log(`- Usuario ${index + 1}:`, {
-        id: user.id,
-        email: user.email,
-        created_at: user.created_at
-      });
-    });
 
     // 2. Obtener todos los admins
     const { data: admins, error: adminError } = await supabase
       .from('admin')
       .select('*');
-    
-    console.log('🔑 Admins en la tabla admin:');
-    console.log('- Total admins:', admins?.length || 0);
-    console.log('- Admins:', admins);
 
     // 3. Obtener todos los técnicos
     const { data: tecnicos, error: tecnicoError } = await supabase
       .from('tecnico')
       .select('*');
-    
-    console.log('👷 Técnicos en la tabla tecnico:');
-    console.log('- Total técnicos:', tecnicos?.length || 0);
-    console.log('- Técnicos:', tecnicos);
 
     // 4. Obtener todas las empresas
     const { data: empresas, error: empresaError } = await supabase
       .from('empresa')
       .select('*');
-    
-    console.log('🏢 Empresas en la tabla empresa:');
-    console.log('- Total empresas:', empresas?.length || 0);
-    console.log('- Empresas:', empresas);
 
     return NextResponse.json({
       success: true,
@@ -129,8 +106,6 @@ export async function POST(request: NextRequest) {
       if (adminError) {
         throw new Error('Error creando admin: ' + adminError.message);
       }
-
-      console.log('✅ Admin creado exitosamente:', newAdmin);
 
       return NextResponse.json({
         success: true,

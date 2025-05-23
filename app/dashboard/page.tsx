@@ -16,14 +16,7 @@ export default function Dashboard() {
   const [parcelasActivas, setParcelasActivas] = useState(0);
   const [ultimoAnalisis, setUltimoAnalisis] = useState("No hay datos");
   
-  // ✅ SEGURO: Determinar si es admin usando el perfil del contexto
   const isAdmin = userProfile?.tipo === 'admin';
-  
-  // 🔍 DEBUG: Logging para diagnosticar el problema
-  console.log('🔍 Dashboard Debug:');
-  console.log('- userProfile:', userProfile);
-  console.log('- userProfile?.tipo:', userProfile?.tipo);
-  console.log('- isAdmin:', isAdmin);
   
   useEffect(() => {
     const cargarDatos = async () => {
