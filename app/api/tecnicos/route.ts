@@ -13,19 +13,6 @@ const supabaseAdmin = createClient(
   }
 );
 
-// Cliente normal para verificar autenticación
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false
-    }
-  }
-);
-
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -34,17 +21,21 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    // Usar el cliente admin para verificar el token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) {
+      console.error('Error de autenticación:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verificar que el usuario es admin usando función segura
-    const { data: adminCheck, error: adminError } = await supabase
+    const { data: adminCheck, error: adminError } = await supabaseAdmin
       .rpc('is_user_admin', { user_id_param: user.id });
 
     if (adminError || !adminCheck?.is_admin) {
+      console.error('Error verificando admin:', adminError);
       return NextResponse.json({ error: 'Solo los administradores pueden acceder a esta función' }, { status: 403 });
     }
 
@@ -114,17 +105,21 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    // Usar el cliente admin para verificar el token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !user) {
+      console.error('Error de autenticación:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verificar que el usuario es admin usando función segura
-    const { data: adminCheck, error: adminError } = await supabase
+    const { data: adminCheck, error: adminError } = await supabaseAdmin
       .rpc('is_user_admin', { user_id_param: user.id });
 
     if (adminError || !adminCheck?.is_admin) {
+      console.error('Error verificando admin:', adminError);
       return NextResponse.json({ error: 'Solo los administradores pueden crear técnicos' }, { status: 403 });
     }
 
