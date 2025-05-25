@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
+import SimpleLoading from '../../components/SimpleLoading';
 import { useMensajes } from '../../utils/MensajesContext';
 import { ApiClient } from '../../utils/apiClient';
 import { formatearFechaMensaje } from '../../utils/shared';
@@ -24,9 +25,9 @@ interface Mensaje {
 }
 
 export default function MensajesPage() {
-  const [loading, setLoading] = useState(true);
   const [mensajesEntrantes, setMensajesEntrantes] = useState<Mensaje[]>([]);
   const [mensajesSalientes, setMensajesSalientes] = useState<Mensaje[]>([]);
+  const [loading, setLoading] = useState(true); // Inicia en true
   const [activeTab, setActiveTab] = useState<'entrantes' | 'salientes'>('entrantes');
   const router = useRouter();
   const { userProfile } = useMensajes();
@@ -35,20 +36,19 @@ export default function MensajesPage() {
     const cargarDatos = async () => {
       if (!userProfile) return;
       
-      // Evitar recargar si ya tenemos datos
-      if (mensajesEntrantes.length > 0 || mensajesSalientes.length > 0) {
+      try {
+        await cargarMensajes(userProfile.tipo, userProfile.id);
+      } catch (error) {
+        console.error('Error cargando mensajes:', error);
+      } finally {
         setLoading(false);
-        return;
       }
-      
-      await cargarMensajes(userProfile.tipo, userProfile.id);
-      setLoading(false);
     };
 
     if (userProfile) {
       cargarDatos();
     }
-  }, [userProfile]); // Solo cargar si no tenemos datos
+  }, [userProfile]);
 
   const cargarMensajes = async (tipo: string, id: string) => {
     try {
@@ -66,10 +66,6 @@ export default function MensajesPage() {
   };
 
   // formatearFecha ahora se importa desde utils/shared como formatearFechaMensaje
-
-  if (loading) {
-    return null; // El Layout ya muestra un estado de carga
-  }
 
   return (
     <Layout>
@@ -191,6 +187,9 @@ export default function MensajesPage() {
             </>
           )}
         </div>
+
+        {/* Loading */}
+        {loading && <SimpleLoading message="Cargando mensajes..." />}
       </div>
     </Layout>
   );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../utils/useAuth";
 import { ApiClient } from "../../utils/apiClient";
 import Layout from "../../components/Layout";
+import SimpleLoading from "../../components/SimpleLoading";
 import CrearTecnicoModal from "../../components/CrearTecnicoModal";
 import { supabase } from "../../utils/supabaseClient";
 
@@ -35,14 +36,13 @@ export default function TecnicosPage() {
       router.push("/dashboard");
       return;
     }
-    if (userProfile && userProfile.tipo === "admin" && tecnicos.length === 0) {
+    if (userProfile && userProfile.tipo === "admin") {
       fetchTecnicos();
     }
     // eslint-disable-next-line
   }, [userProfile]); // Solo cargar si no tenemos datos
 
   const fetchTecnicos = async () => {
-    setLoading(true);
     setError(null);
     try {
       const response = await ApiClient.obtenerTecnicos();
@@ -77,21 +77,7 @@ export default function TecnicosPage() {
     setIsModalOpen(false);
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-64">
-          <div className="flex items-center space-x-2">
-            <svg className="animate-spin h-6 w-6 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span className="text-green-500 text-lg">Cargando técnicos...</span>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+
 
   if (error) {
     return (
@@ -240,6 +226,9 @@ export default function TecnicosPage() {
         onClose={handleCloseModal}
         onTecnicoCreado={handleTecnicoCreado}
       />
+
+      {/* Loading */}
+      {loading && <SimpleLoading message="Cargando técnicos..." />}
     </Layout>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "../../components/Layout";
+import SimpleLoading from "../../components/SimpleLoading";
 import { useMensajes } from "../../utils/MensajesContext";
 import { ApiClient } from "../../utils/apiClient";
 import CrearParcelaModal from "../../components/CrearParcelaModal";
@@ -33,7 +34,6 @@ export default function ParcelasPage() {
   const { userProfile: perfil } = useMensajes();
 
   const fetchParcelas = async () => {
-    setLoading(true);
     setError("");
     
     try {
@@ -55,10 +55,10 @@ export default function ParcelasPage() {
   };
 
   useEffect(() => {
-    if (perfil && parcelas.length === 0) {
+    if (perfil) {
       fetchParcelas();
     }
-  }, [perfil]); // Solo cargar si no tenemos datos
+  }, [perfil]);
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
@@ -73,15 +73,7 @@ export default function ParcelasPage() {
     setParcelas(prev => [...prev, nuevaParcela]);
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-500"></div>
-        </div>
-      </Layout>
-    );
-  }
+
 
 
   return (
@@ -187,6 +179,9 @@ export default function ParcelasPage() {
           tecnicoId={perfil.id}
         />
       )}
+
+      {/* Loading */}
+      {loading && <SimpleLoading message="Cargando parcelas..." />}
     </Layout>
   );
 } 

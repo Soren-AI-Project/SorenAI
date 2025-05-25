@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useAuth } from "../../../utils/useAuth";
 import { ApiClient } from "../../../utils/apiClient";
 import Layout from "../../../components/Layout";
+import SimpleLoading from "../../../components/SimpleLoading";
 import { 
   formatearFecha, 
   AnalisisImagenes, 
@@ -55,7 +56,7 @@ interface Parcela {
 export default function DetalleParcelaPage() {
   const [parcela, setParcela] = useState<Parcela | null>(null);
   const [analiticas, setAnaliticas] = useState<Analitica[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Inicia en true
   const [error, setError] = useState("");
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -97,12 +98,6 @@ export default function DetalleParcelaPage() {
     const fetchParcelaDetail = async () => {
       if (!parcelaId || !userProfile) return;
       
-      // Evitar recargar si ya tenemos datos de esta parcela
-      if (parcela && parcela.id === parcelaId) return;
-      
-      setLoading(true);
-      setError("");
-      
       try {
         const response = await ApiClient.obtenerDetalleParcela(
           userProfile.tipo, 
@@ -119,6 +114,7 @@ export default function DetalleParcelaPage() {
             estado: response.parcela.estado === true,
           });
           setTecnicoSeleccionado(response.parcela.tecnico?.id || "");
+          setError("");
         } else {
           setError("No se encontró la parcela o no tienes acceso a ella");
         }
@@ -131,7 +127,7 @@ export default function DetalleParcelaPage() {
     };
 
     fetchParcelaDetail();
-  }, [parcelaId, userProfile]); // Solo cargar si no tenemos datos de esta parcela
+  }, [parcelaId, userProfile]);
 
   const fetchTecnicos = async () => {
     if (userProfile?.tipo === 'admin') {
@@ -502,13 +498,7 @@ export default function DetalleParcelaPage() {
     );
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="p-8 text-center text-green-500">Cargando detalles de la parcela...</div>
-      </Layout>
-    );
-  }
+
 
   if (error) {
     return (
@@ -1407,6 +1397,9 @@ export default function DetalleParcelaPage() {
             </div>
           </Dialog>
         </Transition>
+
+        {/* Loading */}
+        {loading && <SimpleLoading message="Cargando detalles de la parcela..." />}
       </div>
     </Layout>
   );

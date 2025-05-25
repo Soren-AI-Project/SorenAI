@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../utils/useAuth";
 import { ApiClient } from "../../utils/apiClient";
 import Layout from "../../components/Layout";
+import SimpleLoading from "../../components/SimpleLoading";
 import { 
   formatearFecha, 
   AnalisisImagenes, 
@@ -48,7 +49,7 @@ interface Analisis {
 
 export default function AnalisisPage() {
   const [analisis, setAnalisis] = useState<Analisis[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Inicia en true
   const [error, setError] = useState("");
   const [userProfile, setUserProfile] = useState<any>(null);
   const [selectedAnalisis, setSelectedAnalisis] = useState<Analisis | null>(null);
@@ -66,12 +67,6 @@ export default function AnalisisPage() {
     const fetchAnalisis = async () => {
       if (!userProfile) return;
       
-      // Evitar recargar si ya tenemos datos y el usuario no cambió
-      if (analisis.length > 0) return;
-      
-      setLoading(true);
-      setError("");
-      
       try {
         const response = await ApiClient.obtenerAnalisis(
           userProfile.tipo, 
@@ -80,6 +75,7 @@ export default function AnalisisPage() {
         
         if (response.success) {
           setAnalisis(response.analisis || []);
+          setError("");
         } else {
           setError("Error al cargar los análisis");
         }
@@ -92,7 +88,7 @@ export default function AnalisisPage() {
     };
 
     fetchAnalisis();
-  }, [userProfile]); // Removido analisis.length de las dependencias para evitar loops
+  }, [userProfile]);
 
   const handleVerDetalle = (analisisItem: Analisis) => {
     setSelectedAnalisis(analisisItem);
@@ -131,14 +127,6 @@ export default function AnalisisPage() {
   };
 
   // formatearFecha ahora se importa desde utils/shared
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="p-8 text-center text-green-500">Cargando análisis...</div>
-      </Layout>
-    );
-  }
 
 
 
@@ -413,6 +401,9 @@ export default function AnalisisPage() {
             </div>
           </Dialog>
         </Transition>
+
+        {/* Loading */}
+        {loading && <SimpleLoading message="Cargando análisis..." />}
       </div>
     </Layout>
   );

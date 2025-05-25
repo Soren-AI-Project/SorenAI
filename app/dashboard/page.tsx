@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
+import SimpleLoading from '../../components/SimpleLoading';
 import { useMensajes } from '../../utils/MensajesContext';
 import { ApiClient } from '../../utils/apiClient';
 
@@ -25,11 +26,7 @@ export default function Dashboard() {
         return;
       }
       
-      // Evitar recargar si ya tenemos datos
-      if (parcelasActivas > 0 || ultimoAnalisis !== "No hay datos") {
-        setLoading(false);
-        return;
-      }
+
       
       try {
         // ✅ SEGURO: Usar la nueva API que ejecuta en el servidor
@@ -46,9 +43,7 @@ export default function Dashboard() {
     cargarDatos();
   }, [userProfile]); // Solo cargar si no tenemos datos
 
-  if (loading) {
-    return null; // El Layout ya muestra un estado de carga
-  }
+
 
   return (
     <Layout>
@@ -231,6 +226,9 @@ export default function Dashboard() {
             </span>
           </Link>
         </div>
+
+        {/* Loading */}
+        {loading && <SimpleLoading message="Cargando dashboard..." />}
       </div>
     </Layout>
   );
