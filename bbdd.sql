@@ -70,7 +70,8 @@ create table public.analitica (
   id_parcela uuid not null references public.parcela(id) on delete cascade,
   path_foto text,
   resultado text,
-  fecha timestamp with time zone default now()
+  fecha timestamp with time zone default now(),
+  model_response jsonb
 );
 
 -- Tabla Mensajes

@@ -48,6 +48,22 @@ export default function Sidebar() {
           </Link>
           
           <Link 
+            href="/analisis" 
+            className={`flex items-center px-4 py-3 ${
+              pathname === '/analisis' 
+                ? 'bg-gray-700 text-white'
+                : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+            } rounded-md transition-colors group`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 mr-3 ${
+              pathname === '/analisis' ? 'text-white' : 'text-gray-400 group-hover:text-white'
+            }`}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+            </svg>
+            Análisis
+          </Link>
+          
+          <Link 
             href="/mensajes" 
             className={`flex items-center px-4 py-3 ${
               pathname === '/mensajes' 

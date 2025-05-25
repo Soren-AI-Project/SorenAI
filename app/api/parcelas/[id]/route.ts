@@ -21,7 +21,7 @@ export async function GET(
       return NextResponse.json({ error: 'Parámetros requeridos: userType, userId y id de parcela' }, { status: 400 });
     }
 
-    // Obtener la parcela con su agricultor
+    // Obtener la parcela con su agricultor y técnico
     const { data: parcelaData, error: parcelaError } = await supabase
       .from('parcela')
       .select(`
@@ -32,7 +32,12 @@ export async function GET(
         id_agricultor,
         agricultor:id_agricultor (
           id, 
-          nombre
+          nombre,
+          id_tecnico,
+          tecnico:id_tecnico (
+            id,
+            nombre
+          )
         )
       `)
       .eq('id', parcelaId)
@@ -96,7 +101,7 @@ export async function GET(
     // Obtener analíticas de la parcela
     const { data: analiticas } = await supabase
       .from('analitica')
-      .select('id, id_parcela, path_foto, resultado, fecha')
+      .select('id, id_parcela, path_foto, resultado, model_response, fecha')
       .eq('id_parcela', parcelaId)
       .order('fecha', { ascending: false });
 
@@ -118,12 +123,27 @@ export async function GET(
       });
     }
 
+    // Estructurar la respuesta con el técnico en el nivel principal
+    const agricultor = Array.isArray(parcelaData.agricultor) 
+      ? parcelaData.agricultor[0] 
+      : parcelaData.agricultor;
+    
+    const tecnico = agricultor?.tecnico || null;
+
     return NextResponse.json({ 
       parcela: {
-        ...parcelaData,
-        ultimoAnalisis
-      },
-      analiticas: analiticas || []
+        id: parcelaData.id,
+        cultivo: parcelaData.cultivo,
+        ha: parcelaData.ha,
+        estado: parcelaData.estado,
+        agricultor: agricultor ? {
+          id: agricultor.id,
+          nombre: agricultor.nombre
+        } : null,
+        tecnico: tecnico,
+        ultimoAnalisis,
+        analiticas: analiticas || []
+      }
     });
   } catch (error) {
     console.error('Error obteniendo detalle de parcela:', error);

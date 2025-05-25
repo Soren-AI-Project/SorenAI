@@ -215,4 +215,87 @@ export class ApiClient {
       throw error;
     }
   }
+
+  static async analizarConIA(parcelaId: string, userType: string, userId: string) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseUrl}/analisis/analizar`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          parcelaId,
+          userType,
+          userId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error analizando con IA:', error);
+      throw error;
+    }
+  }
+
+  static async crearAnalisis(parcelaId: string, ph: string, conductividad: string, fotos: File[], userType: string, userId: string) {
+    try {
+      // Convertir fotos a base64 para enviarlas
+      const fotosData = await Promise.all(
+        fotos.map(async (foto) => {
+          const arrayBuffer = await foto.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          return {
+            name: foto.name,
+            type: foto.type,
+            data: uint8Array
+          };
+        })
+      );
+
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseUrl}/analisis`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          parcelaId,
+          ph,
+          conductividad,
+          fotos: fotosData,
+          userType,
+          userId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error creando análisis:', error);
+      throw error;
+    }
+  }
+
+  static async obtenerAnalisis(userType: string, userId: string) {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/analisis?userType=${encodeURIComponent(userType)}&userId=${encodeURIComponent(userId)}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error obteniendo análisis:', error);
+      throw error;
+    }
+  }
 } 

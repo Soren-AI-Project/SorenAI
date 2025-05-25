@@ -16,7 +16,8 @@ SorenAI is a web application designed for agricultural management. It allows use
 *   **Role-Based Access Control:** Differentiated experiences for Admin, Technician, and Farmer roles.
 *   **Dashboard:** Centralized overview of plots, messages, and recent activity.
 *   **Parcela (Plot) Management:** View a list of plots and detailed information for each.
-*   **Crop Analysis:** Functionality to initiate and review crop analyses (placeholder for "Analizar cultivos" button).
+*   **Crop Analysis:** Functionality to initiate and review crop analyses.
+*   **AI-Powered Analysis:** Integration with OpenAI's ChatGPT to provide intelligent analysis of soil conditions and crop recommendations based on historical data.
 
 ## Database Schema Overview
 
@@ -56,14 +57,28 @@ The database is managed using Supabase (PostgreSQL). The key tables include:
     *   In your Supabase project, navigate to 'Project Settings' > 'API'.
     *   Find your Project URL and your `anon` public key.
     *   Create a new file named `.env.local` in the root of your cloned project.
-    *   Add the following lines to `.env.local`, replacing the placeholders with your actual Supabase credentials:
+    *   Add the following lines to `.env.local`, replacing the placeholders with your actual credentials:
         ```env
         NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
         NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+        SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
+        OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+        OPENAI_ASSISTANT_ID=YOUR_ASSISTANT_ID
         ```
     *   Execute the `bbdd.sql` script in your Supabase SQL editor (Navigate to 'SQL Editor' > 'New query' in your Supabase project dashboard) to set up the necessary database tables and relationships.
 
-4.  **Run the development server:**
+4.  **Set up OpenAI API (for AI Analysis feature):**
+    *   Go to [OpenAI Platform](https://platform.openai.com/) and create an account or sign in.
+    *   Navigate to 'API Keys' section and create a new API key.
+    *   Create an Assistant in the OpenAI Dashboard:
+        -   Go to 'Assistants' section in the OpenAI Platform
+        -   Create a new assistant with agronomic expertise
+        -   Configure it with instructions for soil analysis and crop recommendations
+        -   Copy the Assistant ID (starts with 'asst_')
+    *   Add your OpenAI API key and Assistant ID to the `.env.local` file as shown above.
+    *   Note: The AI analysis feature requires OpenAI credits and uses the Assistant API for specialized agricultural analysis.
+
+5.  **Run the development server:**
     ```bash
     npm run dev
     # or
