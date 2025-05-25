@@ -33,12 +33,13 @@ export default function TecnicosPage() {
   useEffect(() => {
     if (userProfile && userProfile.tipo !== "admin") {
       router.push("/dashboard");
+      return;
     }
-    if (userProfile && userProfile.tipo === "admin") {
+    if (userProfile && userProfile.tipo === "admin" && tecnicos.length === 0) {
       fetchTecnicos();
     }
     // eslint-disable-next-line
-  }, [userProfile]);
+  }, [userProfile]); // Solo cargar si no tenemos datos
 
   const fetchTecnicos = async () => {
     setLoading(true);

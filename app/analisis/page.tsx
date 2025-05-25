@@ -6,7 +6,14 @@ import Link from "next/link";
 import { useAuth } from "../../utils/useAuth";
 import { ApiClient } from "../../utils/apiClient";
 import Layout from "../../components/Layout";
-import { supabase } from "../../utils/supabaseClient";
+import { 
+  formatearFecha, 
+  AnalisisImagenes, 
+  useNotification, 
+  NotificationComponent,
+  useConfirmation,
+  ConfirmationModal
+} from "../../utils/shared";
 
 // Deshabilitar el prerenderizado estático para páginas que requieren autenticación
 export const dynamic = 'force-dynamic';
@@ -37,76 +44,7 @@ interface Analisis {
   parcela: Parcela;
 }
 
-// Componente para mostrar imágenes de análisis
-const AnalisisImagenes = ({ carpeta }: { carpeta: string }) => {
-  const [imagenes, setImagenes] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const cargarImagenes = async () => {
-      try {
-        const { data, error } = await supabase.storage
-          .from('imganalisis')
-          .list(carpeta);
-
-        if (error) {
-          console.error('Error cargando imágenes:', error);
-          return;
-        }
-
-        if (data) {
-          const imageFiles = data
-            .filter(file => file.name.startsWith('foto_'))
-            .map(file => `${carpeta}/${file.name}`);
-          setImagenes(imageFiles);
-        }
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    cargarImagenes();
-  }, [carpeta]);
-
-  if (loading) {
-    return (
-      <div className="text-center text-gray-400 text-sm">
-        Cargando imágenes...
-      </div>
-    );
-  }
-
-  if (imagenes.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="mt-3">
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-        {imagenes.slice(0, 4).map((path, index) => (
-          <img 
-            key={index}
-            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/imganalisis/${path}`}
-            alt={`Análisis ${index + 1}`} 
-            className="w-full h-16 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => window.open(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/imganalisis/${path}`, '_blank')}
-            onError={(e) => {
-              console.error('Error cargando imagen:', path);
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        ))}
-        {imagenes.length > 4 && (
-          <div className="w-full h-16 bg-gray-700 rounded border flex items-center justify-center text-gray-400 text-sm">
-            +{imagenes.length - 4}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+// Componente AnalisisImagenes ahora se importa desde utils/shared
 
 export default function AnalisisPage() {
   const [analisis, setAnalisis] = useState<Analisis[]>([]);
@@ -115,6 +53,11 @@ export default function AnalisisPage() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [selectedAnalisis, setSelectedAnalisis] = useState<Analisis | null>(null);
   const [showAnalisisModal, setShowAnalisisModal] = useState(false);
+  const [eliminandoAnalisis, setEliminandoAnalisis] = useState(false);
+
+  // Hooks para notificaciones y confirmaciones
+  const { notification, showNotification, hideNotification } = useNotification();
+  const { isOpen: confirmOpen, config: confirmConfig, showConfirmation, handleConfirm, handleCancel } = useConfirmation();
 
   useAuth(setUserProfile);
 
@@ -122,6 +65,9 @@ export default function AnalisisPage() {
   useEffect(() => {
     const fetchAnalisis = async () => {
       if (!userProfile) return;
+      
+      // Evitar recargar si ya tenemos datos y el usuario no cambió
+      if (analisis.length > 0) return;
       
       setLoading(true);
       setError("");
@@ -146,22 +92,45 @@ export default function AnalisisPage() {
     };
 
     fetchAnalisis();
-  }, [userProfile]);
+  }, [userProfile]); // Removido analisis.length de las dependencias para evitar loops
 
   const handleVerDetalle = (analisisItem: Analisis) => {
     setSelectedAnalisis(analisisItem);
     setShowAnalisisModal(true);
   };
 
-  const formatearFecha = (fecha: string) => {
-    return new Date(fecha).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  const handleEliminarAnalisis = async (analisisId: string) => {
+    if (!userProfile) return;
+    
+    showConfirmation({
+      title: 'Eliminar Análisis',
+      message: '¿Estás seguro de que quieres eliminar este análisis? Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger',
+      onConfirm: async () => {
+        setEliminandoAnalisis(true);
+        
+        try {
+          await ApiClient.eliminarAnalisis(analisisId, userProfile.tipo, userProfile.id);
+          
+          // Actualizar la lista de análisis
+          setAnalisis(prev => prev.filter(a => a.id !== analisisId));
+          setShowAnalisisModal(false);
+          setSelectedAnalisis(null);
+          
+          // Mostrar mensaje de éxito
+          showNotification('Análisis eliminado exitosamente', 'success');
+        } catch (error) {
+          showNotification('Error al eliminar el análisis: ' + (error instanceof Error ? error.message : 'Error desconocido'), 'error');
+        } finally {
+          setEliminandoAnalisis(false);
+        }
+      }
     });
   };
+
+  // formatearFecha ahora se importa desde utils/shared
 
   if (loading) {
     return (
@@ -171,24 +140,19 @@ export default function AnalisisPage() {
     );
   }
 
-  if (error) {
-    return (
-      <Layout>
-        <div className="p-8 text-center">
-          <div className="text-red-400 mb-4">{error}</div>
-          <Link 
-            href="/dashboard"
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors cursor-pointer"
-          >
-            Volver al Dashboard
-          </Link>
-        </div>
-      </Layout>
-    );
-  }
+
 
   return (
     <Layout>
+      {/* Componentes de notificación y confirmación */}
+      <NotificationComponent notification={notification} onClose={hideNotification} />
+      <ConfirmationModal 
+        isOpen={confirmOpen}
+        config={confirmConfig}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
+      
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -203,12 +167,6 @@ export default function AnalisisPage() {
               }
             </p>
           </div>
-          <Link 
-            href="/dashboard"
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors cursor-pointer"
-          >
-            Volver al Dashboard
-          </Link>
         </div>
 
         {/* Lista de análisis */}
@@ -241,7 +199,7 @@ export default function AnalisisPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold text-green-400">
-                        Análisis de parcela [{formatearFecha(analisisItem.fecha).split(' ')[0]}]
+                        Análisis de parcela {formatearFecha(analisisItem.fecha).split(' ')[0]}
                       </h3>
                       {analisisItem.model_response && (
                         <span className="px-2 py-1 bg-blue-900/30 text-blue-400 text-xs rounded-full border border-blue-500/30">
@@ -345,7 +303,7 @@ export default function AnalisisPage() {
                           </div>
                           <div>
                             <Dialog.Title as="h3" className="text-xl font-semibold text-green-400">
-                              {selectedAnalisis && `Análisis de parcela [${formatearFecha(selectedAnalisis.fecha).split(' ')[0]}]`}
+                              {selectedAnalisis && `Análisis de parcela ${formatearFecha(selectedAnalisis.fecha).split(' ')[0]}`}
                             </Dialog.Title>
                             <p className="text-sm text-gray-400">
                               {selectedAnalisis && `${selectedAnalisis.parcela.cultivo} • ${selectedAnalisis.parcela.ha} ha • ${formatearFecha(selectedAnalisis.fecha)}`}
@@ -431,7 +389,15 @@ export default function AnalisisPage() {
 
                     {/* Footer del modal */}
                     <div className="border-t border-gray-700 px-6 py-4 bg-gray-800/50">
-                      <div className="flex justify-end">
+                      <div className="flex justify-between">
+                        <button
+                          type="button"
+                          className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => selectedAnalisis && handleEliminarAnalisis(selectedAnalisis.id)}
+                          disabled={eliminandoAnalisis}
+                        >
+                          {eliminandoAnalisis ? 'Eliminando...' : '🗑️ Eliminar Análisis'}
+                        </button>
                         <button
                           type="button"
                           className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"

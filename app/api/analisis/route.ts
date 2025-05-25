@@ -161,13 +161,28 @@ export async function POST(request: NextRequest) {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    const body = await request.json();
-    const { parcelaId, ph, conductividad, fotos, userType, userId } = body;
+    // Obtener datos del FormData
+    const formData = await request.formData();
+    const parcelaId = formData.get('parcelaId') as string;
+    const ph = formData.get('ph') as string;
+    const conductividad = formData.get('conductividad') as string;
+    const userType = formData.get('userType') as string;
+    const userId = formData.get('userId') as string;
 
     if (!parcelaId || !userType || !userId) {
       return NextResponse.json({ 
         error: 'Parámetros requeridos: parcelaId, userType, userId' 
       }, { status: 400 });
+    }
+
+    // Obtener archivos de fotos del FormData
+    const fotos: File[] = [];
+    let index = 0;
+    while (true) {
+      const foto = formData.get(`foto_${index}`) as File;
+      if (!foto) break;
+      fotos.push(foto);
+      index++;
     }
 
     // Verificar que el usuario tiene acceso a esta parcela
@@ -244,13 +259,13 @@ export async function POST(request: NextRequest) {
       try {
         // Crear nombre único para la carpeta del análisis
         carpetaAnalisis = `parcela_${parcelaId}/analisis_${Date.now()}`;
-        console.log('Carpeta de análisis creada:', carpetaAnalisis);
+        // Carpeta de análisis creada
         
         // Subir cada foto al bucket en la carpeta del análisis
         let fotosSubidas = 0;
         for (let i = 0; i < fotos.length; i++) {
           const foto = fotos[i];
-          if (foto && typeof foto === 'object' && foto.data && foto.name) {
+          if (foto && foto.size > 0) {
             // Limpiar el nombre del archivo: remover espacios, caracteres especiales y normalizar
             const cleanName = foto.name
               .replace(/\s+/g, '_')  // Reemplazar espacios con guiones bajos
@@ -258,33 +273,42 @@ export async function POST(request: NextRequest) {
               .toLowerCase();  // Convertir a minúsculas
             
             const fileName = `${carpetaAnalisis}/foto_${i + 1}_${cleanName}`;
-            console.log('Nombre original:', foto.name);
-            console.log('Nombre limpio:', cleanName);
-            console.log('Ruta final:', fileName);
+            // Procesando archivo de imagen
             
-            // Convertir el array de números a Uint8Array
-            const uint8Array = new Uint8Array(foto.data);
+            // Convertir File a ArrayBuffer y luego a Uint8Array
+            const arrayBuffer = await foto.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
             
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from('imganalisis')
               .upload(fileName, uint8Array, {
-                contentType: foto.type || 'image/jpeg'
+                contentType: foto.type || 'image/jpeg',
+                cacheControl: '3600',
+                upsert: false
               });
 
             if (uploadError) {
               console.error('Error subiendo foto:', uploadError);
+              console.error('Detalles del error:', {
+                fileName,
+                fileSize: foto.size,
+                fileType: foto.type,
+                error: uploadError
+              });
             } else if (uploadData?.path) {
-              console.log('Foto subida exitosamente:', uploadData.path);
+              // Foto subida exitosamente
               fotosSubidas++;
             }
+          } else {
+            console.warn(`Foto ${i + 1} está vacía o es inválida`);
           }
         }
         
         if (fotosSubidas > 0) {
           resultado += `\nFotos adjuntas: ${fotosSubidas}\n`;
-          console.log(`Total de fotos subidas: ${fotosSubidas} en carpeta: ${carpetaAnalisis}`);
+          // Total de fotos subidas: ${fotosSubidas}
         } else {
-          console.log('No se subieron fotos');
+          // No se subieron fotos
         }
       } catch (error) {
         console.error('Error procesando fotos:', error);

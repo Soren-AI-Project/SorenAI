@@ -7,7 +7,14 @@ import Link from "next/link";
 import { useAuth } from "../../../utils/useAuth";
 import { ApiClient } from "../../../utils/apiClient";
 import Layout from "../../../components/Layout";
-import { supabase } from "../../../utils/supabaseClient";
+import { 
+  formatearFecha, 
+  AnalisisImagenes, 
+  useNotification, 
+  NotificationComponent,
+  useConfirmation,
+  ConfirmationModal
+} from "../../../utils/shared";
 
 // Deshabilitar el prerenderizado estático para páginas que requieren autenticación
 export const dynamic = 'force-dynamic';
@@ -43,173 +50,7 @@ interface Parcela {
   analiticas?: Analitica[];
 }
 
-// Componente para mostrar imágenes de análisis con múltiples métodos de acceso
-const AnalisisImagenes = ({ carpeta }: { carpeta: string }) => {
-  const [imagenes, setImagenes] = useState<{path: string, signedUrl: string, publicUrl: string}[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const cargarImagenes = async () => {
-      try {
-        console.log('Cargando imágenes para carpeta:', carpeta);
-        
-        // Primero obtener la lista de archivos
-        const { data, error } = await supabase.storage
-          .from('imganalisis')
-          .list(carpeta);
-
-        if (error) {
-          console.error('Error listando archivos:', error);
-          setError(`Error al acceder a la carpeta: ${error.message}`);
-          setImagenes([]);
-          setLoading(false);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          console.log('Archivos encontrados:', data);
-          
-          // Filtrar solo las imágenes
-          const imageFiles = data.filter(file => file.name.startsWith('foto_'));
-          console.log('Imágenes filtradas:', imageFiles);
-          
-          if (imageFiles.length === 0) {
-            setImagenes([]);
-            setError(null);
-            setLoading(false);
-            return;
-          }
-
-          // Crear URLs tanto firmadas como públicas para cada imagen
-          const imagenesConUrls = await Promise.all(
-            imageFiles.map(async (file) => {
-              const filePath = `${carpeta}/${file.name}`;
-              console.log('Procesando imagen:', filePath);
-              
-              // URL pública
-              const { data: publicData } = supabase.storage
-                .from('imganalisis')
-                .getPublicUrl(filePath);
-              
-              const publicUrl = publicData.publicUrl;
-              console.log('URL pública:', publicUrl);
-              
-              // URL firmada como fallback
-              let signedUrl = '';
-              try {
-                const { data: signedData, error: signedError } = await supabase.storage
-                  .from('imganalisis')
-                  .createSignedUrl(filePath, 3600);
-
-                if (!signedError && signedData) {
-                  signedUrl = signedData.signedUrl;
-                  console.log('URL firmada creada:', signedUrl);
-                } else {
-                  console.error('Error creando URL firmada:', signedError);
-                }
-              } catch (error) {
-                console.error('Error en createSignedUrl:', error);
-              }
-
-              return {
-                path: filePath,
-                signedUrl,
-                publicUrl
-              };
-            })
-          );
-
-          console.log('URLs creadas:', imagenesConUrls.length);
-          setImagenes(imagenesConUrls);
-          setError(null);
-        } else {
-          console.log('No se encontraron archivos en la carpeta');
-          setImagenes([]);
-          setError(null);
-        }
-      } catch (error) {
-        console.error('Error general:', error);
-        setError(`Error general: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (carpeta) {
-      cargarImagenes();
-    }
-  }, [carpeta]);
-
-  if (loading) {
-    return (
-      <div className="mb-3 text-center text-gray-400">
-        Cargando imágenes...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="mb-3 text-center text-red-400 text-sm">
-        {error}
-      </div>
-    );
-  }
-
-  if (imagenes.length === 0) {
-    return (
-      <div className="mb-3 text-center text-gray-400">
-        No se encontraron imágenes para este análisis
-      </div>
-    );
-  }
-
-  return (
-    <div className="mb-3">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {imagenes.map((imagen, index) => {
-          // Usar URL firmada si está disponible, sino URL pública
-          const imageUrl = imagen.signedUrl || imagen.publicUrl;
-          
-          return (
-            <div key={index} className="relative group">
-              <img 
-                src={imageUrl}
-                alt={`Análisis ${index + 1}`} 
-                className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => window.open(imageUrl, '_blank')}
-                onError={(e) => {
-                  console.error('Error cargando imagen:', imagen.path);
-                  console.log('URL que falló:', imageUrl);
-                  
-                  // Intentar con la otra URL como fallback
-                  const fallbackUrl = imagen.signedUrl ? imagen.publicUrl : imagen.signedUrl;
-                  if (fallbackUrl && e.currentTarget.src !== fallbackUrl) {
-                    console.log('Intentando con URL fallback:', fallbackUrl);
-                    e.currentTarget.src = fallbackUrl;
-                  } else {
-                    e.currentTarget.style.display = 'none';
-                  }
-                }}
-                onLoad={() => {
-                  console.log('Imagen cargada exitosamente:', imagen.path);
-                }}
-              />
-              <div className="absolute bottom-1 left-1 bg-black bg-opacity-60 text-white text-xs px-1.5 py-0.5 rounded">
-                {index + 1}
-              </div>
-              {/* Indicador de tipo de URL para debugging */}
-              <div className="absolute top-1 right-1 bg-black bg-opacity-60 text-white text-xs px-1 py-0.5 rounded">
-                {imagen.signedUrl ? 'S' : 'P'}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+// Componente AnalisisImagenes ahora se importa desde utils/shared
 
 export default function DetalleParcelaPage() {
   const [parcela, setParcela] = useState<Parcela | null>(null);
@@ -240,9 +81,14 @@ export default function DetalleParcelaPage() {
   const [isSavingAndAnalyzing, setIsSavingAndAnalyzing] = useState(false);
   const [selectedAnalisisDetalle, setSelectedAnalisisDetalle] = useState<Analitica | null>(null);
   const [showDetalleModal, setShowDetalleModal] = useState(false);
+  const [eliminandoAnalisis, setEliminandoAnalisis] = useState(false);
   const router = useRouter();
   const params = useParams();
   const parcelaId = params.id as string;
+
+  // Hooks para notificaciones y confirmaciones
+  const { notification, showNotification, hideNotification } = useNotification();
+  const { isOpen: confirmOpen, config: confirmConfig, showConfirmation, handleConfirm, handleCancel } = useConfirmation();
 
   useAuth(setUserProfile);
 
@@ -250,6 +96,9 @@ export default function DetalleParcelaPage() {
   useEffect(() => {
     const fetchParcelaDetail = async () => {
       if (!parcelaId || !userProfile) return;
+      
+      // Evitar recargar si ya tenemos datos de esta parcela
+      if (parcela && parcela.id === parcelaId) return;
       
       setLoading(true);
       setError("");
@@ -282,7 +131,7 @@ export default function DetalleParcelaPage() {
     };
 
     fetchParcelaDetail();
-  }, [parcelaId, userProfile]);
+  }, [parcelaId, userProfile]); // Solo cargar si no tenemos datos de esta parcela
 
   const fetchTecnicos = async () => {
     if (userProfile?.tipo === 'admin') {
@@ -533,94 +382,40 @@ export default function DetalleParcelaPage() {
     setShowDetalleModal(true);
   };
 
-  const formatearFecha = (fecha: string) => {
-    return new Date(fecha).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  const handleEliminarAnalisis = async (analisisId: string) => {
+    if (!userProfile) return;
+    
+    showConfirmation({
+      title: 'Eliminar Análisis',
+      message: '¿Estás seguro de que quieres eliminar este análisis? Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger',
+      onConfirm: async () => {
+        setEliminandoAnalisis(true);
+        
+        try {
+          await ApiClient.eliminarAnalisis(analisisId, userProfile.tipo, userProfile.id);
+          
+          // Actualizar la lista de análisis
+          setAnaliticas(prev => prev.filter(a => a.id !== analisisId));
+          setShowDetalleModal(false);
+          setSelectedAnalisisDetalle(null);
+          
+          // Mostrar mensaje de éxito
+          showNotification('Análisis eliminado exitosamente', 'success');
+        } catch (error) {
+          showNotification('Error al eliminar el análisis: ' + (error instanceof Error ? error.message : 'Error desconocido'), 'error');
+        } finally {
+          setEliminandoAnalisis(false);
+        }
+      }
     });
   };
 
-  // Función de prueba para verificar acceso al bucket
-  const probarAccesoBucket = async () => {
-    try {
-      console.log('Probando acceso al bucket imganalisis...');
-      
-      // Intentar listar el contenido del bucket raíz
-      const { data: rootData, error: rootError } = await supabase.storage
-        .from('imganalisis')
-        .list('', { limit: 20 });
+  // formatearFecha ahora se importa desde utils/shared
 
-      if (rootError) {
-        console.error('Error accediendo al bucket:', rootError);
-        setError(`Error de acceso al bucket: ${rootError.message}`);
-        return;
-      }
-
-      console.log('Contenido raíz del bucket:', rootData);
-      
-      // Buscar carpetas específicas de esta parcela
-      const carpetaParcela = `parcela_${parcelaId}`;
-      console.log('Buscando carpeta de parcela:', carpetaParcela);
-      
-      const { data: parcelaData, error: parcelaError } = await supabase.storage
-        .from('imganalisis')
-        .list(carpetaParcela, { limit: 20 });
-
-      if (parcelaError) {
-        console.error('Error accediendo a carpeta de parcela:', parcelaError);
-      } else {
-        console.log(`Contenido de ${carpetaParcela}:`, parcelaData);
-        
-        // Si hay carpetas de análisis, probar la primera
-        if (parcelaData && parcelaData.length > 0) {
-          const primeraSubcarpeta = parcelaData[0];
-          const rutaCompleta = `${carpetaParcela}/${primeraSubcarpeta.name}`;
-          console.log('Probando subcarpeta:', rutaCompleta);
-          
-          const { data: analisisData, error: analisisError } = await supabase.storage
-            .from('imganalisis')
-            .list(rutaCompleta);
-
-          if (analisisError) {
-            console.error('Error accediendo a subcarpeta:', analisisError);
-          } else {
-            console.log(`Contenido de ${rutaCompleta}:`, analisisData);
-            
-            // Probar crear URL firmada para la primera imagen
-            if (analisisData && analisisData.length > 0) {
-              const primeraImagen = analisisData.find(file => file.name.startsWith('foto_'));
-              if (primeraImagen) {
-                const rutaImagen = `${rutaCompleta}/${primeraImagen.name}`;
-                console.log('Probando URL firmada para imagen:', rutaImagen);
-                
-                const { data: signedData, error: signedError } = await supabase.storage
-                  .from('imganalisis')
-                  .createSignedUrl(rutaImagen, 60);
-
-                if (signedError) {
-                  console.error('Error creando URL firmada:', signedError);
-                } else {
-                  console.log('URL firmada creada exitosamente:', signedData.signedUrl);
-                  // Probar cargar la imagen
-                  window.open(signedData.signedUrl, '_blank');
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      setSuccessMessage('Prueba de acceso al bucket completada - revisa la consola y nueva pestaña');
-      setTimeout(() => setSuccessMessage(''), 5000);
-      
-    } catch (error) {
-      console.error('Error en prueba de bucket:', error);
-      setError(`Error en prueba: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-    }
-  };
+  // Funciones de debugging eliminadas para optimización
 
   const renderAnaliticas = () => {
     if (analiticas.length === 0) {
@@ -640,7 +435,7 @@ export default function DetalleParcelaPage() {
           >
             <div className="flex justify-between items-start mb-2">
               <h4 className="text-lg font-semibold text-green-400">
-                Análisis de parcela [{new Date(analitica.fecha).toLocaleDateString('es-ES')}]
+                Análisis de parcela {new Date(analitica.fecha).toLocaleDateString('es-ES')}
               </h4>
               <div className="flex items-center gap-2">
                 {/* Botón de análisis IA - solo aparece si no tiene model_response */}
@@ -743,6 +538,15 @@ export default function DetalleParcelaPage() {
 
   return (
     <Layout>
+      {/* Componentes de notificación y confirmación */}
+      <NotificationComponent notification={notification} onClose={hideNotification} />
+      <ConfirmationModal 
+        isOpen={confirmOpen}
+        config={confirmConfig}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
+      
       <div className="max-w-6xl mx-auto">
         {/* Mensajes de notificación */}
         {error && (
@@ -886,138 +690,7 @@ export default function DetalleParcelaPage() {
                 </button>
               )}
               
-              {/* Botones temporales de prueba - solo para debugging */}
-              {userProfile?.tipo === 'admin' && (
-                <>
-                  <button
-                    className="px-3 py-1 bg-yellow-600 text-white text-xs font-medium rounded hover:bg-yellow-700 transition-colors cursor-pointer"
-                    onClick={probarAccesoBucket}
-                  >
-                    🔧 Cliente
-                  </button>
-                  <button
-                    className="px-3 py-1 bg-purple-600 text-white text-xs font-medium rounded hover:bg-purple-700 transition-colors cursor-pointer"
-                    onClick={async () => {
-                      try {
-                        const response = await fetch(`/api/test-bucket?parcelaId=${parcelaId}`);
-                        const data = await response.json();
-                        console.log('Respuesta del servidor:', data);
-                        if (data.success && data.data.signedUrl) {
-                          window.open(data.data.signedUrl, '_blank');
-                          setSuccessMessage('Prueba del servidor completada - revisa consola y nueva pestaña');
-                        } else {
-                          setError('No se encontraron imágenes o error en servidor');
-                        }
-                      } catch (error) {
-                        console.error('Error probando servidor:', error);
-                        setError('Error probando servidor');
-                      }
-                    }}
-                  >
-                    🔧 Servidor
-                  </button>
-                  <button
-                    className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors cursor-pointer"
-                    onClick={async () => {
-                      try {
-                        setSuccessMessage('Ejecutando diagnóstico completo...');
-                        const response = await fetch('/api/debug-storage');
-                        const data = await response.json();
-                        console.log('=== DIAGNÓSTICO COMPLETO ===');
-                        console.log(data);
-                        
-                        if (data.success) {
-                          const diag = data.diagnostico;
-                          console.log(`Bucket existe: ${diag.bucketExists}`);
-                          console.log(`Total archivos: ${diag.totalFiles}`);
-                          console.log(`Carpetas de parcelas: ${diag.carpetasParcelas}`);
-                          console.log('Detalles:', diag.detallesParcelas);
-                          
-                          // Si hay URLs de prueba, abrirlas
-                          const urlsTest = diag.detallesParcelas
-                            .flatMap((p: any) => p.analisis || [])
-                            .filter((a: any) => a.urlFirmada || a.urlPublica);
-                          
-                          if (urlsTest.length > 0) {
-                            const primeraUrl = urlsTest[0].urlFirmada || urlsTest[0].urlPublica;
-                            window.open(primeraUrl, '_blank');
-                          }
-                          
-                          setSuccessMessage(`Diagnóstico completado: ${diag.totalFiles} archivos, ${diag.carpetasParcelas} parcelas - Ver consola`);
-                        } else {
-                          setError(`Error en diagnóstico: ${data.error}`);
-                        }
-                      } catch (error) {
-                        console.error('Error en diagnóstico:', error);
-                        setError('Error ejecutando diagnóstico');
-                      }
-                    }}
-                  >
-                    🔍 Diagnóstico
-                  </button>
-                  <button
-                    className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors cursor-pointer"
-                    onClick={async () => {
-                      try {
-                        setSuccessMessage('Probando bucket simple...');
-                        
-                        // Probar acceso directo al bucket
-                        const { data: buckets, error } = await supabase.storage.listBuckets();
-                        console.log('Buckets disponibles:', buckets);
-                        
-                        if (error) {
-                          setError(`Error accediendo a buckets: ${error.message}`);
-                          return;
-                        }
-                        
-                        const imgBucket = buckets?.find(b => b.name === 'imganalisis');
-                        if (!imgBucket) {
-                          setError('Bucket imganalisis no encontrado. Créalo manualmente en Supabase.');
-                          return;
-                        }
-                        
-                        console.log('Bucket encontrado:', imgBucket);
-                        
-                        // Probar subida de archivo simple
-                        const testData = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]); // PNG header
-                        const testPath = `test-${Date.now()}.png`;
-                        
-                        const { data: uploadData, error: uploadError } = await supabase.storage
-                          .from('imganalisis')
-                          .upload(testPath, testData, {
-                            contentType: 'image/png'
-                          });
-                        
-                        if (uploadError) {
-                          setError(`Error subiendo archivo: ${uploadError.message}`);
-                          return;
-                        }
-                        
-                        console.log('Archivo subido:', uploadData);
-                        
-                        // Probar URL pública
-                        const { data: publicData } = supabase.storage
-                          .from('imganalisis')
-                          .getPublicUrl(testPath);
-                        
-                        console.log('URL pública:', publicData.publicUrl);
-                        window.open(publicData.publicUrl, '_blank');
-                        
-                        // Limpiar archivo de prueba
-                        await supabase.storage.from('imganalisis').remove([testPath]);
-                        
-                        setSuccessMessage('✅ Bucket funciona correctamente!');
-                        
-                      } catch (error) {
-                        console.error('Error en prueba simple:', error);
-                        setError('Error en prueba simple');
-                      }
-                    }}
-                  >
-                    ✅ Test Simple
-                  </button>
-                </>
-              )}
+              {/* Botones de debugging eliminados para optimización */}
             </div>
           </div>
           {renderAnaliticas()}
@@ -1509,7 +1182,7 @@ export default function DetalleParcelaPage() {
                           </div>
                           <div>
                             <Dialog.Title as="h3" className="text-xl font-semibold text-green-400">
-                              {selectedAnalisisDetalle && `Análisis de parcela [${new Date(selectedAnalisisDetalle.fecha).toLocaleDateString('es-ES')}]`}
+                              {selectedAnalisisDetalle && `Análisis de parcela ${new Date(selectedAnalisisDetalle.fecha).toLocaleDateString('es-ES')}`}
                             </Dialog.Title>
                             <p className="text-sm text-gray-400">
                               {selectedAnalisisDetalle && `${parcela?.cultivo} • ${parcela?.ha} ha • ${formatearFecha(selectedAnalisisDetalle.fecha)}`}
@@ -1607,7 +1280,15 @@ export default function DetalleParcelaPage() {
 
                     {/* Footer del modal */}
                     <div className="border-t border-gray-700 px-6 py-4 bg-gray-800/50">
-                      <div className="flex justify-end">
+                      <div className="flex justify-between">
+                        <button
+                          type="button"
+                          className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => selectedAnalisisDetalle && handleEliminarAnalisis(selectedAnalisisDetalle.id)}
+                          disabled={eliminandoAnalisis}
+                        >
+                          {eliminandoAnalisis ? 'Eliminando...' : '🗑️ Eliminar Análisis'}
+                        </button>
                         <button
                           type="button"
                           className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"

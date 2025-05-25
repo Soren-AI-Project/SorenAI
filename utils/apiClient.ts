@@ -243,31 +243,29 @@ export class ApiClient {
 
   static async crearAnalisis(parcelaId: string, ph: string, conductividad: string, fotos: File[], userType: string, userId: string) {
     try {
-      // Convertir fotos a base64 para enviarlas
-      const fotosData = await Promise.all(
-        fotos.map(async (foto) => {
-          const arrayBuffer = await foto.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          return {
-            name: foto.name,
-            type: foto.type,
-            data: uint8Array
-          };
-        })
-      );
+      // Usar FormData para enviar archivos correctamente
+      const formData = new FormData();
+      
+      // Agregar datos del análisis
+      formData.append('parcelaId', parcelaId);
+      formData.append('ph', ph);
+      formData.append('conductividad', conductividad);
+      formData.append('userType', userType);
+      formData.append('userId', userId);
+      
+      // Agregar cada foto al FormData
+      fotos.forEach((foto, index) => {
+        formData.append(`foto_${index}`, foto, foto.name);
+      });
 
       const headers = await this.getAuthHeaders();
+      // No incluir Content-Type para FormData - el navegador lo establecerá automáticamente
+      const { 'Content-Type': _, ...headersWithoutContentType } = headers;
+      
       const response = await fetch(`${this.baseUrl}/analisis`, {
         method: 'POST',
-        headers,
-        body: JSON.stringify({
-          parcelaId,
-          ph,
-          conductividad,
-          fotos: fotosData,
-          userType,
-          userId
-        })
+        headers: headersWithoutContentType,
+        body: formData
       });
       
       if (!response.ok) {
@@ -295,6 +293,30 @@ export class ApiClient {
       return await response.json();
     } catch (error) {
       console.error('Error obteniendo análisis:', error);
+      throw error;
+    }
+  }
+
+  static async eliminarAnalisis(analisisId: string, userType: string, userId: string) {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${this.baseUrl}/analisis/${encodeURIComponent(analisisId)}`, {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({
+          userType,
+          userId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error eliminando análisis:', error);
       throw error;
     }
   }

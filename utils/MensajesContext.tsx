@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 import { ApiClient } from './apiClient';
 
 interface MensajesContextType {
@@ -23,23 +23,40 @@ const MensajesContext = createContext<MensajesContextType>(defaultValues);
 export function MensajesProvider({ children }: { children: ReactNode }) {
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [userProfile, setUserProfile] = useState<{tipo: string, id: string} | null>(null);
+  const lastProfileRef = useRef<{tipo: string, id: string} | null>(null);
+  const isLoadingRef = useRef(false);
 
-  // ✅ SEGURO: Función para cargar mensajes no leídos usando la API
-  const cargarMensajesNoLeidos = async (tipo: string, id: string) => {
+  // ✅ SEGURO: Función memoizada para cargar mensajes no leídos usando la API
+  const cargarMensajesNoLeidos = useCallback(async (tipo: string, id: string) => {
+    // Evitar múltiples llamadas simultáneas
+    if (isLoadingRef.current) return;
+    
     try {
+      isLoadingRef.current = true;
       const data = await ApiClient.contarMensajesNoLeidos(tipo, id);
       setMensajesNoLeidos(data.mensajesNoLeidos || 0);
     } catch (error) {
       console.error("Error al cargar mensajes no leídos:", error);
+    } finally {
+      isLoadingRef.current = false;
     }
-  };
+  }, []);
 
   // Este efecto detecta cambios en el perfil del usuario y actualiza los mensajes
   useEffect(() => {
-    if (userProfile) {
+    // Solo cargar si realmente cambió el perfil
+    if (userProfile && 
+        (!lastProfileRef.current || 
+         lastProfileRef.current.tipo !== userProfile.tipo || 
+         lastProfileRef.current.id !== userProfile.id)) {
+      
+      lastProfileRef.current = userProfile;
       cargarMensajesNoLeidos(userProfile.tipo, userProfile.id);
+    } else if (!userProfile) {
+      lastProfileRef.current = null;
+      setMensajesNoLeidos(0);
     }
-  }, [userProfile]);
+  }, [userProfile, cargarMensajesNoLeidos]);
 
   return (
     <MensajesContext.Provider value={{ 

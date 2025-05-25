@@ -25,6 +25,12 @@ export default function Dashboard() {
         return;
       }
       
+      // Evitar recargar si ya tenemos datos
+      if (parcelasActivas > 0 || ultimoAnalisis !== "No hay datos") {
+        setLoading(false);
+        return;
+      }
+      
       try {
         // ✅ SEGURO: Usar la nueva API que ejecuta en el servidor
         const data = await ApiClient.obtenerDatosDashboard(userProfile.tipo, userProfile.id);
@@ -38,7 +44,7 @@ export default function Dashboard() {
     };
     
     cargarDatos();
-  }, [userProfile]);
+  }, [userProfile]); // Solo cargar si no tenemos datos
 
   if (loading) {
     return null; // El Layout ya muestra un estado de carga
@@ -201,7 +207,7 @@ export default function Dashboard() {
             </Link>
           )}
 
-          <div className="group relative bg-gray-800 p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-orange-500 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-700 hover:border-orange-500 cursor-pointer">
+          <Link href="/analisis" className="group relative bg-gray-800 p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-orange-500 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-700 hover:border-orange-500 cursor-pointer">
             <div>
               <span className="rounded-lg inline-flex p-3 bg-orange-600 text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -211,7 +217,8 @@ export default function Dashboard() {
             </div>
             <div className="mt-8">
               <h3 className="text-lg font-medium text-white">
-                Reportes
+                <span className="absolute inset-0" aria-hidden="true" />
+                Analíticas
               </h3>
               <p className="mt-2 text-sm text-gray-400">
                 Generar informes y análisis
@@ -222,7 +229,7 @@ export default function Dashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
               </svg>
             </span>
-          </div>
+          </Link>
         </div>
       </div>
     </Layout>

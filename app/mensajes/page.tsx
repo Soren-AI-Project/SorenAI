@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { useMensajes } from '../../utils/MensajesContext';
 import { ApiClient } from '../../utils/apiClient';
+import { formatearFechaMensaje } from '../../utils/shared';
 
 // Deshabilitar el prerenderizado estático para páginas que requieren autenticación
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,12 @@ export default function MensajesPage() {
     const cargarDatos = async () => {
       if (!userProfile) return;
       
+      // Evitar recargar si ya tenemos datos
+      if (mensajesEntrantes.length > 0 || mensajesSalientes.length > 0) {
+        setLoading(false);
+        return;
+      }
+      
       await cargarMensajes(userProfile.tipo, userProfile.id);
       setLoading(false);
     };
@@ -41,7 +48,7 @@ export default function MensajesPage() {
     if (userProfile) {
       cargarDatos();
     }
-  }, [userProfile]);
+  }, [userProfile]); // Solo cargar si no tenemos datos
 
   const cargarMensajes = async (tipo: string, id: string) => {
     try {
@@ -58,16 +65,7 @@ export default function MensajesPage() {
     }
   };
 
-  const formatearFecha = (fechaStr: string) => {
-    const fecha = new Date(fechaStr);
-    return fecha.toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  // formatearFecha ahora se importa desde utils/shared como formatearFechaMensaje
 
   if (loading) {
     return null; // El Layout ya muestra un estado de carga
@@ -137,7 +135,7 @@ export default function MensajesPage() {
                           <h3 className="text-white font-medium">{mensaje.asunto}</h3>
                         </div>
                         <span className="text-sm text-gray-400">
-                          {formatearFecha(mensaje.fecha_envio)}
+                          {formatearFechaMensaje(mensaje.fecha_envio)}
                         </span>
                       </div>
                       <p className="text-gray-300 text-sm mb-2">
@@ -173,7 +171,7 @@ export default function MensajesPage() {
                       <div className="flex justify-between items-start mb-2">
                         <h3 className="text-white font-medium">{mensaje.asunto}</h3>
                         <span className="text-sm text-gray-400">
-                          {formatearFecha(mensaje.fecha_envio)}
+                          {formatearFechaMensaje(mensaje.fecha_envio)}
                         </span>
                       </div>
                       <p className="text-gray-300 text-sm mb-2">

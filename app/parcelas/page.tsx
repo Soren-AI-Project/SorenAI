@@ -55,10 +55,10 @@ export default function ParcelasPage() {
   };
 
   useEffect(() => {
-    if (perfil) {
+    if (perfil && parcelas.length === 0) {
       fetchParcelas();
     }
-  }, [perfil]);
+  }, [perfil]); // Solo cargar si no tenemos datos
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
@@ -83,24 +83,6 @@ export default function ParcelasPage() {
     );
   }
 
-  if (error) {
-    return (
-      <Layout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-red-600 text-center">
-            <h2 className="text-xl font-bold mb-2">Error</h2>
-            <p>{error}</p>
-            <button 
-              onClick={() => router.push("/dashboard")}
-              className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              Volver al Dashboard
-            </button>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>

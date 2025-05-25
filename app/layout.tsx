@@ -2,7 +2,7 @@
 
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import Loading from "./loading";
 import { usePathname } from "next/navigation";
 import { MensajesProvider } from "../utils/MensajesContext";
@@ -23,27 +23,37 @@ const geistMono = Geist_Mono({
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const pathname = usePathname();
+  const previousPathname = useRef(pathname);
+  const isInitialLoad = useRef(true);
   
   useEffect(() => {
-    const handleStart = () => {
-      setIsLoading(true);
-    };
+    // Solo mostrar loading si realmente cambió la ruta y no es la carga inicial
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      previousPathname.current = pathname;
+      return;
+    }
 
-    const handleComplete = () => {
-      // Pequeño retraso para asegurar que se vea el spinner
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 600);
-    };
+    // Solo ejecutar si realmente cambió la ruta
+    if (previousPathname.current !== pathname) {
+      const handleStart = () => {
+        setIsLoading(true);
+      };
 
-    // Simulamos el inicio de la navegación
-    handleStart();
-    
-    // Simulamos la finalización de la navegación después de un tiempo
-    const timer = setTimeout(handleComplete, 800);
+      const handleComplete = () => {
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 300); // Reducido el tiempo
+      };
 
-    return () => clearTimeout(timer);
-  }, [pathname]); // Solo dependemos del pathname
+      handleStart();
+      const timer = setTimeout(handleComplete, 400); // Reducido el tiempo total
+
+      previousPathname.current = pathname;
+
+      return () => clearTimeout(timer);
+    }
+  }, [pathname]);
 
   return (
     <>
